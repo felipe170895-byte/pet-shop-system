@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#8b5cf6">
+    <title>PetCare — Gestão de Banho e Tosa</title>
+    <style>
+        :root {
+            --primary: #f97316;
+            --primary-dark: #c2410c;
+            --primary-soft: #ffedd5;
+            --ink: #1f2937;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --surface: #ffffff;
+            --background: #fff7ed;
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --info: #2563eb;
+            --shadow: 0 10px 30px rgba(249, 115, 22, .12);
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            margin: 0;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: var(--background);
+            line-height: 1.5;
+        }
+        button, input, select, textarea { font: inherit; }
+        button { cursor: pointer; }
+        button:disabled { cursor: not-allowed; opacity: .6; }
+
+        .app { min-height: 100vh; display: flex; }
+        .sidebar {
+            position: fixed;
+            inset: 0 auto 0 0;
+            z-index: 30;
+            width: 255px;
+            padding: 24px 16px;
+            color: #fff;
+            background: linear-gradient(180deg, #4c1d95 0%, #6d28d9 48%, #7c3aed 100%);
+            display: flex;
+            flex-direction: column;
+        }
+        .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 28px; }
+        .brand-mark {
+            width: 40px; height: 40px; display: grid; place-items: center;
+            border-radius: 12px; background: rgba(255,255,255,.18); font-size: 22px;
+        }
+        .brand strong { display: block; font-size: 18px; letter-spacing: -.3px; }
+        .brand small { display: block; color: #ddd6fe; font-size: 11px; margin-top: 1px; }
+        .nav { display: grid; gap: 6px; }
+        .nav button {
+            border: 0; color: #ede9fe; background: transparent; text-align: left;
+            border-radius: 11px; padding: 12px 13px; display: flex; align-items: center; gap: 12px;
+            transition: .2s ease; font-weight: 600;
+        }
+        .nav button:hover, .nav button.active { color: #fff; background: rgba(255,255,255,.17); }
+        .nav-icon { width: 20px; text-align: center; font-size: 17px; }
+        .sidebar-footer { margin-top: auto; padding: 14px 10px 0; color: #ddd6fe; font-size: 12px; }
+        .sidebar-footer .online { color: #bbf7d0; margin-top: 7px; display: flex; align-items: center; gap: 6px; }
+        .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4ade80; }
+
+        /* Layout novo (top tabs) */
+        .main { width: 100%; margin-left: 0; min-width: 0; }
+        /* Mantém sidebar apenas como opcional (legacy) */
+        .sidebar { display: none; }
+
+        .topbar {
+            padding: 10px 34px 12px;
+            background: rgba(255,255,255,.82);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 14px;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            backdrop-filter: blur(12px);
+        }
+        .mobile-menu { display: none; border: 0; background: transparent; font-size: 22px; color: var(--ink); }
+
+        /* Top tabs */
+        .top-tabs { display: flex; gap: 6px; padding: 0 34px; overflow-x: auto; scrollbar-width: none; }
+        .top-tabs::-webkit-scrollbar { display: none; }
+        .top-tabs .tab {
+            border: 1px solid transparent;
+            background: rgba(255,255,255,.65);
+            color: rgba(31,41,55,.85);
+            border-radius: 999px;
+            padding: 10px 13px;
+            font-weight: 800;
+            font-size: 12px;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: .18s ease;
+        }
+        .top-tabs .tab:hover { border-color: var(--primary-soft); transform: translateY(-1px); }
+        .top-tabs .tab.active { background: linear-gradient(180deg, rgba(249,115,22,.18), rgba(249,115,22,.06)); border-color: rgba(249,115,22,.35); color: var(--primary-dark); }
+        .tab-icon { font-size: 14px; }
+        @media (max-width: 760px) {
+            .top-tabs { padding: 0 17px; }
+        }
+        .topbar-title { flex: 1; min-width: 0; }
+        .topbar-title h1 { font-size: 21px; margin: 0; letter-spacing: -.5px; }
+        .topbar-title p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+        .topbar-actions { display: flex; align-items: center; gap: 10px; }
+        .search {
+            width: 240px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 10px 36px;
+            background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='m11 11 4 4'/%3E%3C/svg%3E") 12px center no-repeat;
+            outline: none;
+        }
+        .search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+        .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--primary); font-weight: 700; }
+        .content { max-width: 1500px; margin: 0 auto; padding: 32px 34px 60px; }
+        .view { display: none; animation: fade .2s ease; }
+        .view.active { display: block; }
+        @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+        .page-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; margin-bottom: 25px; }
+        .page-heading h2 { margin: 0; font-size: 25px; letter-spacing: -.7px; }
+        .page-heading p { color: var(--muted); margin: 5px 0 0; font-size: 14px; }
+        .actions { display: flex; gap: 9px; flex-wrap: wrap; }
+        .btn {
+            border: 1px solid transparent; border-radius: 10px; padding: 10px 15px; font-weight: 700; font-size: 13px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 7px; transition: .2s ease;
+        }
+        .btn-primary { color: #fff; background: var(--primary); }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-light { color: var(--ink); border-color: var(--border); background: #fff; }
+        .btn-light:hover { border-color: #c4b5fd; color: var(--primary); }
+        .btn-danger { color: #fff; background: var(--danger); }
+        .btn-success { color: #fff; background: var(--success); }
+        .btn-info { color: #fff; background: var(--info); }
+        .btn-small { padding: 7px 9px; font-size: 12px; border-radius: 8px; }
+        .icon-btn { border: 0; background: transparent; color: var(--muted); font-size: 18px; padding: 4px 7px; border-radius: 7px; }
+        .icon-btn:hover { color: var(--danger); background: #fef2f2; }
+
+        .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+        .stat-popup { cursor: help; padding: 16px; }
+        .stat-popup .stat-value { display: none; }
+        .stat-popup .stat-note { display: none; }
+        .stat-popup:hover .stat-value { display: block; }
+        .stat-popup:hover .stat-note { display: block; }
+        .stat-card::after { content: ""; position: absolute; width: 74px; height: 74px; border-radius: 50%; right: -25px; top: -27px; background: var(--primary-soft); }
+        .stat-label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+        .stat-value { font-size: 29px; font-weight: 800; margin-top: 7px; letter-spacing: -1px; }
+        .stat-note { color: var(--muted); font-size: 12px; margin-top: 3px; }
+        .stat-icon { position: absolute; right: 14px; top: 13px; z-index: 1; font-size: 23px; }
+        .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .9fr); gap: 20px; }
+        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+        .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+        .panel-header h3 { font-size: 16px; margin: 0; }
+        .panel-header p { color: var(--muted); font-size: 12px; margin: 3px 0 0; }
+        .panel-body { padding: 20px; }
+        .empty { padding: 38px 20px; color: var(--muted); text-align: center; font-size: 13px; }
+        .empty .empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+        .appointment-kanban { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+        .agenda-column { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .agenda-column-header { padding: 12px 14px; background: #fafafa; border-bottom: 1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+        .agenda-column-header h4 { margin: 0; font-size: 13px; }
+        .agenda-column-header .count { font-size: 11px; color: var(--muted); font-weight: 900; padding: 4px 8px; border-radius: 99px; background: var(--primary-soft); }
+        .agenda-column-body { padding: 12px; display:none; gap: 10px; min-height: 120px; }
+        .agenda-column:hover .agenda-column-body { display:grid; }
+        .appointment-item { display: grid; grid-template-columns: 48px 1fr; grid-template-rows: auto auto; gap: 8px 12px; align-items: start; padding: 12px; border: 1px solid var(--border); border-radius: 11px; background: #fff; }
+        .agenda-column .appointment-item { transition: transform .12s ease, box-shadow .12s ease; }
+        .agenda-column:hover .appointment-item { box-shadow: 0 10px 30px rgba(124,58,237,.08); }
+        .appointment-time { grid-column: 1; grid-row: 1; font-size: 16px; font-weight: 900; color: var(--primary); }
+        .appointment-main { grid-column: 2; grid-row: 1; }
+        .appointment-main strong { display: block; font-size: 14px; }
+        .appointment-main small { color: var(--muted); font-size: 12px; display:block; margin-top: 3px; }
+        .appointment-meta { grid-column: 2; grid-row: 2; display:flex; flex-wrap:wrap; gap: 6px; align-items:center; }
+        .appointment-actions { grid-column: 1 / -1; display:flex; justify-content:space-between; gap: 8px; flex-wrap:wrap; align-items:center; margin-top: 3px; }
+        .status { display: inline-flex; align-items: center; border-radius: 99px; padding: 5px 9px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+        .status-Aguardando { color: #92400e; background: #fef3c7; }
+        .status-Em-Banho { color: #1e40af; background: #dbeafe; }
+        .status-Pronto { color: #065f46; background: #d1fae5; }
+        .status-Entregue { color: #374151; background: #e5e7eb; }
+        .status-Cancelado { color: #991b1b; background: #fee2e2; }
+        .status-Reagendado { color: #6d28d9; background: #ede9fe; }
+        .status-pago { color: #065f46; background: #d1fae5; }
+        .status-parcial { color: #92400e; background: #fef3c7; }
+        .status-pendente { color: #991b1b; background: #fee2e2; }
+        .care-alert { margin-top: 7px; padding: 7px 9px; color: #991b1b; background: #fff1f2; border-left: 3px solid #fb7185; border-radius: 5px; font-size: 11px; }
+
+        .panel-header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        /* Compact (Dashboard) - reduz o cartão e mostra detalhes/açoes em hover */
+        #dashboardAppointments .appointment-list { max-height: 360px; overflow: auto; padding-right: 6px; }
+        #dashboardAppointments .appointment-item-compact { margin-bottom: 6px; }
+        .appointment-item-compact { padding: 10px; grid-template-columns: 44px 1fr; }
+        .appointment-item-compact .compact-hide { display: none; }
+        .appointment-item-compact .compact-popup-only { display: none; }
+        .appointment-item-compact:hover .compact-hide { display: block; }
+        .appointment-item-compact:hover .compact-popup-only { display: block; }
+
+        .appointment-item-compact .appointment-actions { margin-top: 0; }
+        .appointment-item-compact .appointment-time { font-size: 15px; }
+
+        /* select precisa de display block quando aparece */
+        .appointment-item-compact:hover .appointment-actions select.select-control { display: block; }
+
+        /* Kanban compacto do dashboard (Visão geral) - colunas sempre visíveis com scroll interno */
+        .dashboard-kanban { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .dashboard-kanban .agenda-column-header { padding: 9px 11px; }
+        .dashboard-kanban .agenda-column-header h4 { font-size: 12px; }
+        .dashboard-kanban .agenda-column-header .count { font-size: 10px; padding: 3px 7px; }
+        .dashboard-kanban .dashboard-column-body { display: grid; gap: 8px; padding: 10px; min-height: 80px; max-height: 260px; overflow-y: auto; }
+        @media (max-width: 1100px) { .dashboard-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 520px) { .dashboard-kanban { grid-template-columns: 1fr; } }
+
+        @media (max-width: 1100px) {
+            .appointment-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 520px) {
+            .appointment-kanban { grid-template-columns: 1fr; }
+        }
+
+        .quick-actions { display: grid; gap: 10px; }
+        .quick-action { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid var(--border); background: #fff; border-radius: 11px; color: var(--ink); text-align: left; }
+        .quick-action:hover { border-color: #c4b5fd; background: #faf9ff; }
+        .quick-action-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: var(--primary-soft); font-size: 17px; }
+        .quick-action strong { font-size: 13px; display: block; }
+        .quick-action small { color: var(--muted); display: block; font-size: 11px; margin-top: 1px; }
+
+        .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .filter-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .field-inline, .select-control { border: 1px solid var(--border); background: #fff; padding: 9px 11px; border-radius: 9px; color: var(--ink); outline: none; }
+        .field-inline:focus, .select-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 720px; }
+        th, td { padding: 13px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+        th { color: var(--muted); background: #fafafa; text-transform: uppercase; letter-spacing: .45px; font-size: 10px; font-weight: 800; }
+        tbody tr:hover { background: #fcfbff; }
+        tbody tr:last-child td { border-bottom: 0; }
+        .person { display: flex; align-items: center; gap: 9px; }
+        .person-avatar { width: 32px; height: 32px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; color: var(--primary-dark); background: var(--primary-soft); font-weight: 800; font-size: 12px; }
+        .person strong { font-size: 13px; display: block; }
+        .person small { color: var(--muted); display: block; font-size: 11px; }
+        .row-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+        .actions-cell { white-space: nowrap; }
+        .subtle { color: var(--muted); font-size: 12px; }
+        .money { font-weight: 800; color: var(--success); }
+        .danger-text { color: var(--danger); }
+        .chip-list { display: flex; flex-wrap: wrap; gap: 7px; }
+        .chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; background: var(--primary-soft); color: var(--primary-dark); }
+        .chip-toggle { border: 0; cursor: pointer; font: inherit; }
+        .chip-toggle:disabled { cursor: not-allowed; opacity: .6; }
+        .chip-toggle:hover:not(:disabled) { transform: translateY(-1px); }
+        .service-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+        .service-card { padding: 17px; border: 1px solid var(--border); border-radius: 13px; background: #fff; }
+        .service-card h4 { margin: 0 0 5px; font-size: 15px; }
+        .service-card p { margin: 0; color: var(--muted); font-size: 12px; min-height: 36px; }
+        .service-card .service-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; font-size: 13px; font-weight: 800; }
+        .profile-header { display: flex; align-items: center; gap: 14px; }
+        .profile-header .person-avatar { width: 48px; height: 48px; font-size: 20px; }
+        .profile-header h3 { margin: 0; font-size: 19px; }
+        .profile-header p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+        .timeline { display: grid; gap: 10px; }
+        .timeline-item { padding: 12px 14px; border-left: 3px solid var(--primary); background: #faf9ff; border-radius: 0 9px 9px 0; }
+        .timeline-item strong { display: block; font-size: 13px; }
+        .timeline-item small { color: var(--muted); font-size: 11px; }
+        .report-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; margin: 0 0 18px; }
+        .report-grid .stat-card { min-height: 112px; }
+        .report-value { font-size: 24px; font-weight: 800; margin-top: 5px; }
+        .report-filter-panel { margin-bottom: 18px; }
+        .report-filter-panel .toolbar { align-items: end; }
+        .report-filter-panel label { display: flex; flex-direction: column; gap: 5px; }
+        .report-sections { align-items: start; }
+        .report-sections .panel { min-width: 0; }
+        .print-only { display: none; }
+        @media print { .sidebar, .topbar, .page-heading, .toolbar, .modal-backdrop, .toast-area { display: none !important; } .main { width: 100%; margin: 0; } .content { padding: 0; } .view { display: none !important; } .view.active { display: block !important; } .print-only { display: block; } }
+
+        .modal-backdrop { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(17, 24, 39, .55); padding: 20px; align-items: center; justify-content: center; }
+        .modal-backdrop.open { display: flex; }
+        .modal { width: min(600px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; background: #fff; border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,.22); }
+        .modal.wide { width: min(820px, 100%); }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 23px; border-bottom: 1px solid var(--border); }
+        .modal-header h3 { margin: 0; font-size: 18px; }
+        .modal-body { padding: 22px 23px; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+        .form-group { display: grid; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { font-size: 12px; font-weight: 800; color: #4b5563; }
+        .form-group label span { color: var(--danger); }
+        .form-control { width: 100%; padding: 10px 11px; border: 1px solid #d1d5db; border-radius: 9px; outline: none; color: var(--ink); background: #fff; }
+        .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+        textarea.form-control { resize: vertical; min-height: 88px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 9px; padding: 16px 23px 21px; border-top: 1px solid var(--border); }
+        .help-text { color: var(--muted); font-size: 11px; }
+
+        .toast-area { position: fixed; right: 22px; bottom: 22px; z-index: 200; display: grid; gap: 9px; width: min(370px, calc(100vw - 44px)); }
+        .toast { display: flex; align-items: flex-start; gap: 10px; padding: 13px 15px; color: #fff; border-radius: 11px; box-shadow: 0 12px 30px rgba(0,0,0,.18); animation: toast-in .25s ease; font-size: 13px; }
+        .toast.success { background: var(--success); } .toast.error { background: var(--danger); } .toast.info { background: var(--info); }
+        @keyframes toast-in { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+        .loading { color: var(--muted); text-align: center; padding: 28px; font-size: 13px; }
+        .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid #ddd6fe; border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .notice { padding: 12px 14px; border-radius: 9px; font-size: 12px; margin-bottom: 15px; }
+        .notice.info { color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; }
+        .notice-warn { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        #unpaidNotice[hidden] { display: none !important; }
+        .notice-warn .notice-text { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+        .notice-warn .notice-text span.icon { font-size: 18px; }
+        .search-results { display: none; position: absolute; top: 52px; right: 0; width: 350px; max-height: 400px; overflow-y: auto; background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); z-index: 50; }
+        .search-results.open { display: block; }
+        .search-wrap { position: relative; }
+        .search-result { width: 100%; display: block; border: 0; background: #fff; text-align: left; padding: 11px 13px; border-bottom: 1px solid var(--border); }
+        .search-result:hover { background: #faf9ff; }
+        .search-result strong { display: block; font-size: 12px; }
+        .search-result small { color: var(--muted); font-size: 11px; }
+        .result-title { color: var(--primary); padding: 10px 13px 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        .pet-picker { position: relative; }
+        .pet-picker-results { display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 5; max-height: 230px; overflow-y: auto; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); }
+        .pet-picker-results.open { display: block; }
+        .pet-picker-result { width: 100%; border: 0; border-bottom: 1px solid var(--border); background: #fff; padding: 10px 12px; text-align: left; }
+        .pet-picker-result:last-child { border-bottom: 0; }
+        .pet-picker-result:hover, .pet-picker-result.selected { background: #faf9ff; }
+        .pet-picker-result strong { display: block; font-size: 13px; }
+        .pet-picker-result small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+        @media (max-width: 1100px) {
+            .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 760px) {
+            .main { width: 100%; margin-left: 0; }
+            .topbar { padding: 10px 17px 12px; height: auto; }
+            .topbar-title h1 { font-size: 17px; }
+            .topbar-title p { display: none; }
+            .topbar-actions .search-wrap { display: none; }
+            .content { padding: 23px 17px 45px; }
+            .page-heading { display: block; }
+            .page-heading .actions { margin-top: 15px; }
+            .cards { gap: 10px; }
+            .stat-card { padding: 15px; }
+            .stat-value { font-size: 23px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-group.full { grid-column: auto; }
+            .service-card-grid, .report-grid { grid-template-columns: 1fr; }
+            .appointment-item { grid-template-columns: 48px 1fr; }
+            .appointment-actions { grid-column: 1 / -1; justify-content: flex-start; }
+        }
+        @media (max-width: 440px) {
+            .cards { grid-template-columns: 1fr 1fr; }
+            .stat-label { font-size: 10px; }
+            .stat-note { font-size: 10px; }
+            .actions .btn { flex: 1; }
+        }
+        /* ---- Pet spa premium (radical) ---- */
+        body {
+            background:
+                radial-gradient(900px 420px at 15% -10%, rgba(249,115,22,.20), transparent 60%),
+                radial-gradient(700px 360px at 85% 0%, rgba(124,58,237,.16), transparent 55%),
+                radial-gradient(800px 460px at 50% 120%, rgba(245,158,11,.12), transparent 55%),
+                var(--background);
+        }
+
+        .app { position: relative; overflow: hidden; }
+        .app::before,
+        .app::after {
+            content: "";
+            position: absolute;
+            width: 520px;
+            height: 520px;
+            border-radius: 50%;
+            filter: blur(44px);
+            opacity: .60;
+            z-index: 0;
+            pointer-events: none;
+            animation: spaBlob 10s ease-in-out infinite;
+        }
+        .app::before {
+            left: -220px;
+            top: 40px;
+            background: radial-gradient(circle at 35% 35%, rgba(249,115,22,.55), rgba(249,115,22,0));
+        }
+        .app::after {
+            right: -260px;
+            top: -110px;
+            background: radial-gradient(circle at 30% 30%, rgba(124,58,237,.48), rgba(124,58,237,0));
+            animation-delay: -3s;
+        }
+        @keyframes spaBlob {
+            0%, 100% { transform: translate3d(0,0,0) scale(1); }
+            50% { transform: translate3d(0,26px,0) scale(1.05); }
+        }
+
+        .main { position: relative; z-index: 1; }
+
+        .topbar {
+            background: rgba(255,247,237,.72);
+            border-bottom-color: rgba(229,231,235,.90);
+        }
+
+        .top-tabs .tab.active {
+            background: linear-gradient(180deg, rgba(249,115,22,.22), rgba(249,115,22,.08));
+            border-color: rgba(249,115,22,.45);
+            box-shadow: 0 18px 40px rgba(249,115,22,.16);
+        }
+
+        .panel {
+            background: rgba(255,255,255,.62);
+            backdrop-filter: blur(12px);
+            border-color: rgba(229,231,235,.92);
+            transition: box-shadow .16s ease, transform .16s ease;
+        }
+        .panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 22px 60px rgba(249,115,22,.10);
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,.72);
+            backdrop-filter: blur(12px);
+            border-color: rgba(229,231,235,.92);
+            transition: transform .16s ease, box-shadow .16s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px) rotate(-.15deg);
+            box-shadow: 0 24px 70px rgba(249,115,22,.12);
+        }
+
+        .service-card {
+            background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.56));
+            border-color: rgba(229,231,235,.92);
+        }
+        .service-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 24px 70px rgba(249,115,22,.14);
+        }
+
+        .appointment-item {
+            background: rgba(255,255,255,.82);
+            border-color: rgba(229,231,235,.92);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .app::before, .app::after { animation: none; }
+            .stat-card, .panel, .service-card { transition: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <div class="brand-mark">🐾</div>
+                <div><strong>PetCare</strong><small>Gestão de banho e tosa</small></div>
+            </div>
+            <nav class="sidebar-nav" aria-label="Navegação principal">
+                <button class="active" data-view="dashboard"><span class="nav-icon">⌂</span> Visão geral</button>
+                <button data-view="agenda"><span class="nav-icon">▣</span> Agenda do dia</button>
+                <button data-view="pets"><span class="nav-icon">🐶</span> Pets</button>
+                <button data-view="tutores"><span class="nav-icon">♙</span> Tutores</button>
+                <button data-view="financeiro"><span class="nav-icon">◈</span> Financeiro</button>
+                <button data-view="servicos"><span class="nav-icon">✦</span> Serviços</button>
+                <button data-view="lembretes"><span class="nav-icon">♧</span> Lembretes</button>
+                <button data-view="relatorios"><span class="nav-icon">▥</span> Relatórios</button>
+            </nav>
+            <div class="sidebar-footer">
+                <div>Controle simples para cuidar melhor.</div>
+                <div class="online"><span class="dot"></span> Sistema online</div>
+            </div>
+        </aside>
+
+        <main class="main">
+            <header class="topbar">
+                <div class="topbar-title">
+                    <h1 id="topbarTitle">Visão geral</h1>
+                    <p id="topbarDate"></p>
+                </div>
+                <div class="top-tabs" aria-label="Navegação por abas">
+                    <button class="tab active" data-view="dashboard"><span class="tab-icon">⌂</span> Visão geral</button>
+                    <button class="tab" data-view="agenda"><span class="tab-icon">▣</span> Agenda</button>
+                    <button class="tab" data-view="pets"><span class="tab-icon">🐶</span> Pets</button>
+                    <button class="tab" data-view="tutores"><span class="tab-icon">♙</span> Tutores</button>
+                    <button class="tab" data-view="financeiro"><span class="tab-icon">◈</span> Financeiro</button>
+                    <button class="tab" data-view="servicos"><span class="tab-icon">✦</span> Serviços</button>
+                    <button class="tab" data-view="lembretes"><span class="tab-icon">♧</span> Lembretes</button>
+                    <button class="tab" data-view="relatorios"><span class="tab-icon">▥</span> Relatórios</button>
+                </div>
+                <div class="topbar-actions">
+                    <div class="search-wrap">
+                        <input class="search" id="globalSearch" type="search" placeholder="Buscar tutor ou pet..." autocomplete="off">
+                        <div class="search-results" id="searchResults"></div>
+                    </div>
+                    <div class="avatar">PC</div>
+                </div>
+            </header>
+
+            <div class="content">
+                <section class="view active" id="view-dashboard">
+                    <div class="page-heading">
+                        <div><h2>Bom dia! 👋</h2><p>Acompanhe o movimento do seu pet shop.</p></div>
+                        <div class="actions"><button class="btn btn-primary" data-action="new-appointment">＋ Novo agendamento</button></div>
+                    </div>
+                    <div id="unpaidNotice" class="notice notice-warn" hidden></div>
+                    <div class="cards">
+                        <article class="stat-card"><span class="stat-icon">📅</span><div class="stat-label">Atendimentos hoje</div><div class="stat-value" id="statAppointments">—</div><div class="stat-note">serviços agendados</div></article>
+                        <article class="stat-card"><span class="stat-icon">✨</span><div class="stat-label">Pets prontos</div><div class="stat-value" id="statReady">—</div><div class="stat-note">aguardando retirada</div></article>
+                        <article class="stat-card"><span class="stat-icon">💰</span><div class="stat-label">Faturamento total do dia</div><div class="stat-value" id="statRevenue">—</div><div class="stat-note">serviços agendados hoje</div></article>
+                        <article class="stat-card"><span class="stat-icon">💳</span><div class="stat-label">Recebido hoje</div><div class="stat-value" id="statReceived">—</div><div class="stat-note">pagamentos confirmados</div></article>
+
+                        <article class="stat-card"><span class="stat-icon">⏳</span><div class="stat-label">Prontos sem pagamento</div><div class="stat-value" id="statReadyNoPay">—</div><div class="stat-note">a receber</div></article>
+                        <article class="stat-card"><span class="stat-icon">📦</span><div class="stat-label">Entregues sem pagamento</div><div class="stat-value" id="statDeliveredNoPay">—</div><div class="stat-note">a receber</div></article>
+                        <article class="stat-card"><span class="stat-icon">🧾</span><div class="stat-label">Pagamentos parciais</div><div class="stat-value" id="statPartial">—</div><div class="stat-note">em andamento</div></article>
+                    </div>
+                    <div class="dashboard-grid">
+                        <article class="panel"><div class="panel-header"><div><h3>Agenda de hoje</h3><p id="dashboardDate"></p></div><div class="panel-header-actions"><button class="btn btn-light btn-small" data-action="bulk-whatsapp-prontos">WhatsApp Prontos</button><button class="btn btn-light btn-small" data-action="bulk-whatsapp-prontos-nopay">WhatsApp Prontos s/ pagamento</button><button class="btn btn-light btn-small" data-view-link="agenda">Ver agenda completa →</button></div></div><div class="panel-body" id="dashboardAppointments"><div class="loading"><span class="spinner"></span>Carregando agenda...</div></div></article>
+                        <article class="panel"><div class="panel-header"><div><h3>Ações rápidas</h3><p>Ganhe tempo no atendimento</p></div></div><div class="panel-body"><div class="quick-actions"><button class="quick-action" data-action="new-appointment"><span class="quick-action-icon">📅</span><span><strong>Agendar banho ou tosa</strong><small>Reserve um horário para um pet</small></span></button><button class="quick-action" data-action="new-pet"><span class="quick-action-icon">🐶</span><span><strong>Cadastrar novo pet</strong><small>Vincule o pet a um tutor</small></span></button><button class="quick-action" data-action="new-tutor"><span class="quick-action-icon">👤</span><span><strong>Cadastrar tutor</strong><small>Adicione um novo responsável</small></span></button></div></div></article>
+                    </div>
+                </section>
+
+                <section class="view" id="view-agenda">
+                    <div class="page-heading"><div><h2>Agenda do dia</h2><p>Organize os horários e acompanhe cada atendimento.</p></div><div class="actions"><button class="btn btn-primary" data-action="new-appointment">＋ Novo agendamento</button></div></div>
+                    <div class="toolbar"><div class="filter-group"><input class="field-inline" type="date" id="agendaDate"><select class="select-control" id="agendaStatusFilter"><option value="">Todos os status</option><option>Aguardando</option><option>Em Banho</option><option>Pronto</option><option>Entregue</option><option>Reagendado</option><option>Cancelado</option></select></div><button class="btn btn-light" data-action="refresh">↻ Atualizar</button></div>
+                    <div class="cards" style="margin-top:16px"><article class="stat-card"><span class="stat-icon">📅</span><div class="stat-label">Atendimentos no dia</div><div class="stat-value" id="agendaStatAppointments">—</div><div class="stat-note">ativos (exclui cancelados e reagendados)</div></article><article class="stat-card"><span class="stat-icon">✨</span><div class="stat-label">Pets prontos</div><div class="stat-value" id="agendaStatReady">—</div><div class="stat-note">status Pronto</div></article><article class="stat-card"><span class="stat-icon">💰</span><div class="stat-label">Faturamento total do dia</div><div class="stat-value" id="agendaStatRevenue">—</div><div class="stat-note">contratado (ativo)</div></article><article class="stat-card"><span class="stat-icon">💳</span><div class="stat-label">Recebido hoje</div><div class="stat-value" id="agendaStatReceived">—</div><div class="stat-note">pagamentos confirmados</div></article></div>
+                    <article class="panel"><div class="panel-body"><div class="agenda-kanban" id="agendaList"><div class="loading"><span class="spinner"></span>Carregando agendamentos...</div></div></div></article>
+                </section>
+
+                <section class="view" id="view-pets">
+                    <div class="page-heading"><div><h2>Pets cadastrados</h2><p>Tenha os dados e cuidados de cada pet sempre à mão.</p></div><div class="actions"><button class="btn btn-primary" data-action="new-pet">＋ Novo pet</button></div></div>
+                    <div class="toolbar"><div class="filter-group"><input class="field-inline" id="petFilter" type="search" placeholder="Filtrar por nome, raça ou tutor..." style="width:280px"></div><button class="btn btn-light" data-action="refresh">↻ Atualizar</button></div>
+                    <article class="panel"><div class="table-wrap"><table><thead><tr><th>Pet</th><th>Tutor</th><th>Perfil</th><th>Cuidados</th><th>Ações</th></tr></thead><tbody id="petsTable"><tr><td colspan="5"><div class="loading"><span class="spinner"></span>Carregando pets...</div></td></tr></tbody></table></div></article>
+                </section>
+
+                <section class="view" id="view-tutores">
+                    <div class="page-heading"><div><h2>Tutores</h2><p>Gerencie os responsáveis pelos seus clientes.</p></div><div class="actions"><button class="btn btn-primary" data-action="new-tutor">＋ Novo tutor</button></div></div>
+                    <div class="toolbar"><div class="filter-group"><input class="field-inline" id="tutorFilter" type="search" placeholder="Filtrar por nome, telefone ou CPF..." style="width:280px"></div><button class="btn btn-light" data-action="refresh">↻ Atualizar</button></div>
+                    <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tutor</th><th>Telefone</th><th>CPF</th><th>Pets</th><th>Ações</th></tr></thead><tbody id="tutorsTable"><tr><td colspan="5"><div class="loading"><span class="spinner"></span>Carregando tutores...</div></td></tr></tbody></table></div></article>
+                </section>
+
+                <section class="view" id="view-financeiro">
+                    <div class="page-heading"><div><h2>Financeiro</h2><p>Resumo dos serviços registrados no sistema.</p></div><div class="actions"><button class="btn btn-light" data-action="refresh">↻ Atualizar</button><button class="btn btn-light" data-action="recalculate-financial">Recalcular totais e saldos</button></div></div>
+                    <div class="cards"><article class="stat-card"><span class="stat-icon">🧾</span><div class="stat-label">Serviços registrados</div><div class="stat-value" id="financialCount">—</div><div class="stat-note">no histórico carregado</div></article><article class="stat-card"><span class="stat-icon">✅</span><div class="stat-label">Serviços concluídos</div><div class="stat-value" id="financialCompleted">—</div><div class="stat-note">entregues</div></article><article class="stat-card"><span class="stat-icon">💵</span><div class="stat-label">Total recebido</div><div class="stat-value" id="financialReceived">—</div><div class="stat-note">pagamentos confirmados</div></article><article class="stat-card"><span class="stat-icon">📈</span><div class="stat-label">Total previsto</div><div class="stat-value" id="financialExpected">—</div><div class="stat-note">todos os serviços</div></article></div>
+                    <article class="panel"><div class="panel-header"><div><h3>Histórico de serviços</h3><p>Use os valores para acompanhar o movimento do negócio.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Pet</th><th>Serviço</th><th>Status</th><th>Valor</th><th>Ações</th></tr></thead><tbody id="financialTable"><tr><td colspan="6"><div class="loading"><span class="spinner"></span>Carregando histórico...</div></td></tr></tbody></table></div></article>
+                </section>
+
+                <section class="view" id="view-servicos">
+                    <div class="page-heading"><div><h2>Catálogo de serviços</h2><p>Consulte os serviços oferecidos e inicie um novo atendimento.</p></div><div class="actions"><button class="btn btn-light" data-action="refresh">↻ Atualizar</button><button class="btn btn-primary" data-action="new-service">＋ Novo serviço</button><button class="btn btn-primary" data-action="new-appointment">＋ Agendar serviço</button></div></div>
+                    <article class="panel"><div class="panel-body"><div class="service-card-grid" id="servicesCatalog"></div></div></article>
+                </section>
+
+                <section class="view" id="view-lembretes">
+                    <div class="page-heading"><div><h2>Lembretes manuais</h2><p>Escolha um tutor e abra uma mensagem pronta para enviar.</p></div></div>
+                    <article class="panel"><div class="panel-body"><form id="reminderForm"><div class="form-grid"><div class="form-group"><label>Tutor <span>*</span></label><select class="form-control" name="tutor_id" required><option value="">Selecione...</option></select></div><div class="form-group"><label>Tipo de lembrete</label><select class="form-control" name="tipo"><option>Retorno do banho e tosa</option><option>Vacinação</option><option>Aniversário</option><option>Outro</option></select></div><div class="form-group full"><label>Mensagem <span>*</span></label><textarea class="form-control" name="mensagem" required>Olá! Passando para lembrar do cuidado do seu pet no PetCare. 🐾</textarea></div></div><div class="actions" style="margin-top:16px"><button class="btn btn-primary">Abrir WhatsApp</button><button type="button" class="btn btn-light" data-action="save-reminder">Salvar lembrete local</button></div></form><div id="reminderList" style="margin-top:20px"></div></div></article>
+                </section>
+
+                <section class="view" id="view-relatorios">
+                    <div class="page-heading"><div><h2>Relatórios</h2><p>Veja o desempenho financeiro e operacional por período.</p></div><div class="actions"><button class="btn btn-light" data-action="refresh">↻ Atualizar</button><button class="btn btn-light" data-action="backup-sqlite">Backup SQLite</button><button class="btn btn-primary" data-action="print-report">Imprimir relatório</button></div></div>
+                    <article class="panel report-filter-panel"><div class="panel-body"><div class="toolbar" style="margin:0"><div class="filter-group"><label class="subtle">De <input class="field-inline" type="date" id="reportStart"></label><label class="subtle">Até <input class="field-inline" type="date" id="reportEnd"></label><button class="btn btn-primary" data-action="apply-report-filter">Aplicar período</button></div><span class="subtle" id="reportPeriodLabel"></span></div></div></article>
+                    <div class="report-grid" id="reportCards"></div>
+                    <div class="dashboard-grid report-sections"><article class="panel"><div class="panel-header"><div><h3>Serviços por tipo</h3><p>Volume e faturamento no período.</p></div></div><div class="table-wrap"><table><thead><tr><th>Serviço</th><th>Atendimentos</th><th>Faturamento</th></tr></thead><tbody id="reportServices"></tbody></table></div></article><article class="panel"><div class="panel-header"><div><h3>Atendimentos por status</h3><p>Acompanhe o andamento dos serviços.</p></div></div><div class="table-wrap"><table><thead><tr><th>Status</th><th>Quantidade</th><th>Valor</th></tr></thead><tbody id="reportStatuses"></tbody></table></div></article></div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modalBox"></div></div>
+    <div class="toast-area" id="toastArea"></div>
+
+    <script>
+        const API_URL = location.protocol === 'file:' ? 'http://localhost:3000/api' : `${location.origin}/api`;
+        const state = { view: 'dashboard', tutors: [], pets: [], appointments: [], services: [], editingId: null, modalType: null, profilePet: null, paymentModalAppointment: null, paymentModalPayments: [] };
+        const STATUS_OPTIONS = ['Aguardando', 'Em Banho', 'Pronto', 'Entregue', 'Cancelado', 'Reagendado'];
+        const SERVICE_OPTIONS = ['Banho', 'Tosa higiênica', 'Tosa completa', 'Banho + tosa', 'Hidratação', 'Desembolo', 'Outro'];
+        const SERVICE_CATALOG = [];
+        const FALLBACK_SERVICES = ['Banho', 'Tosa higiênica', 'Tosa completa', 'Banho + tosa', 'Hidratação', 'Desembolo'].map((nome, index) => ({ id: null, nome, descricao: 'Serviço de cuidado e bem-estar para seu pet.', duracao_minutos: 60, preco: [45, 35, 70, 95, 25, 30][index], ativo: 1 }));
+
+        const $ = (selector) => document.querySelector(selector);
+        const $$ = (selector) => [...document.querySelectorAll(selector)];
+        const today = () => { const d = new Date(); const offset = d.getTimezoneOffset(); return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 10); };
+        const formatDate = (value) => { if (!value) return '—'; const [y, m, d] = value.split('-'); return `${d}/${m}/${y}`; };
+        const apiErrorMessage = (error) => error?.status === 0 ? 'Não foi possível conectar ao servidor. Verifique se o sistema está ligado.' : (error?.message || 'Não foi possível concluir a operação.');
+        const formatMoney = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const digits = (value) => String(value || '').replace(/\D/g, '');
+        const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+        const safe = (value) => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+        const phoneDisplay = (value) => { const d = digits(value); if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`; if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`; return value || '—'; };
+        const cpfDisplay = (value) => { const d = digits(value); return d.length === 11 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : (value || '—'); };
+        const statusClass = (value) => `status-${String(value || '').replace(/\s/g, '-')}`;
+
+        async function api(path, options = {}) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 12000);
+            try {
+                const response = await fetch(`${API_URL}${path}`, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, signal: controller.signal, ...options });
+                let data = null;
+                try { data = await response.json(); } catch (_) { data = {}; }
+                if (!response.ok) {
+                    const error = new Error(data.error || `Erro HTTP ${response.status}`);
+                    error.status = response.status;
+                    error.fields = data.fields;
+                    throw error;
+                }
+                return data;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    const timeoutError = new Error('O servidor demorou demais para responder.');
+                    timeoutError.status = 0;
+                    throw timeoutError;
+                }
+                if (error instanceof TypeError) error.status = 0;
+                throw error;
+            } finally {
+                clearTimeout(timeout);
+            }
+        }
+
+        function toast(message, type = 'success') {
+            const item = document.createElement('div'); item.className = `toast ${type}`; item.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '!' : 'i'}</span><span>${safe(message)}</span>`;
+            $('#toastArea').appendChild(item); setTimeout(() => item.remove(), 4200);
+        }
+        function loading(message = 'Carregando...') { return `<div class="loading"><span class="spinner"></span>${safe(message)}</div>`; }
+        function empty(message, icon = '🐾') { return `<div class="empty"><div class="empty-icon">${icon}</div>${safe(message)}</div>`; }
+
+        async function navigate(view) {
+            state.view = view;
+            $$('.view').forEach(item => item.classList.toggle('active', item.id === `view-${view}`));
+            const titles = { dashboard: 'Visão geral', agenda: 'Agenda do dia', pets: 'Pets', tutores: 'Tutores', financeiro: 'Financeiro', servicos: 'Serviços', lembretes: 'Lembretes', relatorios: 'Relatórios' };
+            $('#topbarTitle').textContent = titles[view] || 'PetCare';
+            // Top tabs: troca a aba ativa (sem depender do sidebar)
+            $$('.top-tabs .tab').forEach(item => item.classList.toggle('active', item.dataset.view === view));
+            if (view === 'dashboard') loadDashboard();
+            if (view === 'agenda') loadAgenda();
+            if (view === 'pets') loadPets();
+            if (view === 'tutores') loadTutors();
+            if (view === 'financeiro') loadFinancial();
+            if (view === 'servicos') loadServiceCatalog();
+            if (view === 'lembretes') loadReminders();
+            if (view === 'relatorios') loadReports();
+        }
+
+        function applyDashboardSummary(summary) {
+            if (!summary) return;
+            $('#statAppointments').textContent = summary.totalAtendimentos ?? 0;
+            $('#statReady').textContent = summary.petsProntos ?? 0;
+            $('#statRevenue').textContent = formatMoney(summary.faturamentoTotalDia ?? summary.faturamento);
+            $('#statReceived').textContent = formatMoney(summary.recebidoHoje);
+            $('#dashboardDate').textContent = formatDate(summary.data);
+        }
+
+        function applyDashboardPending(appointments = []) {
+            const prontoNoPay = appointments.filter(a => a?.status === 'Pronto' && Number(a?.saldo_devedor || 0) > 0.005);
+            const entregueNoPay = appointments.filter(a => a?.status === 'Entregue' && Number(a?.saldo_devedor || 0) > 0.005);
+            const parcial = appointments.filter(a => String(a?.status_pagamento || '').toLowerCase() === 'parcial');
+
+            const totalProntoNoPay = prontoNoPay.reduce((sum, a) => sum + Number(a?.saldo_devedor || 0), 0);
+            const totalEntregueNoPay = entregueNoPay.reduce((sum, a) => sum + Number(a?.saldo_devedor || 0), 0);
+            const totalParcial = parcial.reduce((sum, a) => sum + Number(a?.saldo_devedor || 0), 0);
+
+            $('#statReadyNoPay').textContent = `${prontoNoPay.length} · ${formatMoney(totalProntoNoPay)}`;
+            $('#statDeliveredNoPay').textContent = `${entregueNoPay.length} · ${formatMoney(totalEntregueNoPay)}`;
+            $('#statPartial').textContent = `${parcial.length} · ${formatMoney(totalParcial)}`;
+
+            // Aviso de serviços não pagos (todos os atendimentos do dia com saldo em aberto)
+            const todosNaoPagos = appointments.filter(a => Number(a?.saldo_devedor || 0) > 0.005);
+            const totalNaoPago = todosNaoPagos.reduce((sum, a) => sum + Number(a?.saldo_devedor || 0), 0);
+            const notice = $('#unpaidNotice');
+            if (notice) {
+                if (todosNaoPagos.length) {
+                    notice.hidden = false;
+                    notice.innerHTML = `<div class="notice-text"><span class="icon">⚠️</span> ${todosNaoPagos.length} atendimento(s) com pagamento pendente — ${formatMoney(totalNaoPago)} a receber.</div><div class="row-actions"><button class="btn btn-success btn-small" data-action="bulk-whatsapp-prontos-nopay">Cobrar via WhatsApp</button><button class="btn btn-light btn-small" data-view-link="financeiro">Ver financeiro →</button></div>`;
+                } else {
+                    notice.hidden = true;
+                    notice.innerHTML = '';
+                }
+            }
+        }
+
+        async function loadDashboard() {
+            const [summaryResult, appointmentsResult] = await Promise.allSettled([api('/dashboard/resumo'), api('/agendamentos/hoje')]);
+            if (summaryResult.status === 'fulfilled') applyDashboardSummary(summaryResult.value);
+            else {
+                const message = apiErrorMessage(summaryResult.reason);
+                $('#statAppointments').textContent = '—';
+                $('#statReady').textContent = '—';
+                $('#statRevenue').textContent = '—';
+                $('#statReceived').textContent = '—';
+                toast(message, 'error');
+            }
+            if (appointmentsResult.status === 'fulfilled') {
+                state.appointments = appointmentsResult.value;
+                applyDashboardPending(appointmentsResult.value);
+                renderDashboardKanban();
+            } else {
+                const message = apiErrorMessage(appointmentsResult.reason);
+                $('#dashboardAppointments').innerHTML = empty(`Não foi possível carregar a agenda: ${message}`, '⚠️');
+                if (summaryResult.status === 'fulfilled') toast(message, 'error');
+            }
+        }
+
+        function applyAgendaStats() {
+            const appointments = state.appointments || [];
+            const excluded = new Set(['Cancelado', 'Reagendado']);
+            const active = appointments.filter(a => !excluded.has(a.status));
+            const pronto = active.filter(a => a.status === 'Pronto');
+
+            const faturamento = active.reduce((sum, a) => sum + Number(a.valor || 0), 0);
+            const recebido = active.reduce((sum, a) => sum + Number(a.valor_pago || 0), 0);
+
+            $('#agendaStatAppointments').textContent = active.length;
+            $('#agendaStatReady').textContent = pronto.length;
+            $('#agendaStatRevenue').textContent = formatMoney(faturamento);
+            $('#agendaStatReceived').textContent = formatMoney(recebido);
+        }
+
+        async function loadAgenda() {
+            const date = $('#agendaDate').value || today(); $('#agendaDate').value = date;
+            $('#agendaList').innerHTML = loading('Carregando agendamentos...');
+            $('#agendaStatAppointments').textContent = '—';
+            $('#agendaStatReady').textContent = '—';
+            $('#agendaStatRevenue').textContent = '—';
+            $('#agendaStatReceived').textContent = '—';
+            try {
+                state.appointments = await api(`/agendamentos?data=${encodeURIComponent(date)}`);
+                applyAgendaStats();
+                renderAgenda();
+            } catch (error) {
+                const message = apiErrorMessage(error);
+                $('#agendaList').innerHTML = empty(message, '⚠️');
+                toast(message, 'error');
+            }
+        }
+        const AGENDA_COLUMNS = ['Aguardando', 'Em Banho', 'Pronto', 'Entregue', 'Cancelado', 'Reagendado'];
+        function renderAgenda() {
+            const filter = $('#agendaStatusFilter').value;
+            const items = state.appointments.filter(item => !filter || item.status === filter);
+
+            const grouped = AGENDA_COLUMNS.reduce((acc, status) => { acc[status] = []; return acc; }, {});
+            items.forEach(item => { if (grouped[item.status]) grouped[item.status].push(item); });
+
+            const hasAny = Object.values(grouped).some(list => list.length);
+            if (!hasAny) {
+                $('#agendaList').innerHTML = empty('Nenhum agendamento encontrado para este período.', '📅');
+                return;
+            }
+
+            $('#agendaList').innerHTML = `
+                <div class="appointment-kanban">
+                    ${AGENDA_COLUMNS.map(status => {
+                        const list = grouped[status] || [];
+                        const count = list.length;
+                        const safeTitle = status;
+                        return `
+                            <div class="agenda-column">
+                                <div class="agenda-column-header">
+                                    <h4>${safeTitle}</h4>
+                                    <span class="count">${count}</span>
+                                </div>
+                                <div class="agenda-column-body">
+                                    ${count ? list.map(item => appointmentHtml(item, false)).join('') : '<div class="subtle">—</div>'}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        function renderAppointmentList(items, selector, compact) {
+            const target = $(selector); if (!items.length) { target.innerHTML = empty('Nenhum agendamento encontrado para este período.', '📅'); return; }
+            target.innerHTML = `<div class="appointment-list">${items.map(item => appointmentHtml(item, compact)).join('')}</div>`;
+        }
+
+        // Kanban compacto da “Agenda de hoje” no dashboard (Visão geral).
+        // Mesma organização por status da aba “Agenda do dia”, porém em cartões compactos.
+        function renderDashboardKanban(appointments = null) {
+            const target = $('#dashboardAppointments'); if (!target) return;
+            const items = Array.isArray(appointments) ? appointments : (state.appointments || []);
+
+            const grouped = AGENDA_COLUMNS.reduce((acc, status) => { acc[status] = []; return acc; }, {});
+            items.forEach(item => { if (grouped[item.status]) grouped[item.status].push(item); });
+
+            const hasAny = Object.values(grouped).some(list => list.length);
+            if (!hasAny) { target.innerHTML = empty('Nenhum agendamento para hoje.', '📅'); return; }
+
+            target.innerHTML = `
+                <div class="appointment-kanban dashboard-kanban">
+                    ${AGENDA_COLUMNS.map(status => {
+                        const list = grouped[status] || [];
+                        const count = list.length;
+                        return `
+                            <div class="agenda-column">
+                                <div class="agenda-column-header">
+                                    <h4>${safe(status)}</h4>
+                                    <span class="count">${count}</span>
+                                </div>
+                                <div class="agenda-column-body dashboard-column-body">
+                                    ${count ? list.map(item => appointmentHtml(item, true)).join('') : '<div class="subtle">—</div>'}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function buildBulkWhatsAppMessage(item) {
+            const nomeTutor = item.tutor_nome || 'tutor';
+            const nomePet = item.pet_nome || 'seu pet';
+            return `Olá, ${nomeTutor}! O ${nomePet} já está pronto no PetCare. 🐾`;
+        }
+
+        function formatTutorPhone(tutorTelefone) {
+            if (!tutorTelefone) return '';
+            let d = digits(tutorTelefone);
+
+            // Se o número já veio com DDI (55) salvo no banco, evita duplicar no wa.me.
+            if (d.startsWith('55') && d.length > 11) d = d.slice(2);
+
+            // Garante no máximo 11 dígitos (Brasil).
+            if (d.length > 11) d = d.slice(-11);
+
+            return d;
+        }
+
+        async function bulkWhatsAppProntos() {
+            const pronto = (state.appointments || []).filter(a => a?.status === 'Pronto');
+            if (!pronto.length) return toast('Nenhum atendimento no status “Pronto”.', 'error');
+
+            const rowsHtml = pronto.map(a => {
+                const telefone = formatTutorPhone(a.tutor_telefone);
+                const nomeTutor = a.tutor_nome || 'tutor';
+                const nomePet = a.pet_nome || 'pet';
+                const disabled = !telefone;
+                return `<div class="timeline-item"><strong>${safe(nomePet)}</strong><small>${safe(nomeTutor)} · ${disabled ? 'sem telefone' : telefone}</small><div class="row-actions" style="margin-top:6px">${disabled ? '' : `<button class="btn btn-success btn-small" type="button" data-action="send-whatsapp" data-id="${a.id}" data-whatsapp-kind="pronto">Enviar</button>`}</div></div>`;
+            }).join('');
+
+            $('#modalBox').innerHTML = `<div class="modal-header"><h3>WhatsApp • Prontos</h3><button class="icon-btn" data-action="close-modal">×</button></div><div class="modal-body"><div class="notice info">Selecione quais atendimentos enviar.</div><div class="timeline">${rowsHtml}</div></div><div class="modal-footer"><button class="btn btn-light" data-action="close-modal">Fechar</button></div>`;
+            $('#modalBackdrop').classList.add('open');
+        }
+
+        async function bulkWhatsAppProntosNoPay() {
+            const prontoNoPay = (state.appointments || []).filter(a => a?.status === 'Pronto' && Number(a?.saldo_devedor || 0) > 0.005);
+            if (!prontoNoPay.length) return toast('Nenhum atendimento “Pronto” sem pagamento.', 'error');
+
+            const rowsHtml = prontoNoPay.map(a => {
+                const telefone = formatTutorPhone(a.tutor_telefone);
+                const nomeTutor = a.tutor_nome || 'tutor';
+                const nomePet = a.pet_nome || 'pet';
+                const disabled = !telefone;
+                return `<div class="timeline-item"><strong>${safe(nomePet)}</strong><small>${safe(nomeTutor)} · ${disabled ? 'sem telefone' : telefone}</small><div class="row-actions" style="margin-top:6px">${disabled ? '' : `<button class="btn btn-success btn-small" type="button" data-action="send-whatsapp" data-id="${a.id}" data-whatsapp-kind="nopay">Enviar</button>`}</div></div>`;
+            }).join('');
+
+            $('#modalBox').innerHTML = `<div class="modal-header"><h3>WhatsApp • Prontos s/ pagamento</h3><button class="icon-btn" data-action="close-modal">×</button></div><div class="modal-body"><div class="notice info">Apenas atendimentos com saldo em aberto.</div><div class="timeline">${rowsHtml}</div></div><div class="modal-footer"><button class="btn btn-light" data-action="close-modal">Fechar</button></div>`;
+            $('#modalBackdrop').classList.add('open');
+        }
+
+        function appointmentHtml(item, compact = false) {
+            const care = item.pet_observacoes ? `<div class="care-alert ${compact ? 'compact-hide' : ''}">⚠️ ${safe(item.pet_observacoes)}</div>` : '';
+            const whatsapp = item.status === 'Pronto' ? `<button class="btn btn-success btn-small" data-action="whatsapp" data-id="${item.id}">WhatsApp</button>` : '';
+
+            const contratado = Number(item.valor || 0);
+            const pago = Number(item.valor_pago || 0);
+            const saldo = Number(item.saldo_devedor || 0);
+            const podePagar = saldo > 0.005;
+
+            const paymentStatus = item.status_pagamento ? String(item.status_pagamento).toLowerCase() : '';
+            const paymentLabel = paymentStatus === 'pago' ? 'Pago' : paymentStatus === 'parcial' ? 'Parcial' : paymentStatus === 'pendente' ? 'Pendente' : item.status_pagamento;
+
+            const paymentChip = paymentStatus ? `<span class="status ${statusClass(paymentStatus)}">💳 ${safe(paymentLabel)}</span>` : '';
+            const statusChip = `<span class="status ${statusClass(item.status)}">🏷️ ${safe(item.status)}</span>`;
+
+            const statusSelect = `<select class="select-control" data-action="change-status" data-id="${item.id}" aria-label="Alterar status">${STATUS_OPTIONS.map(status => `<option ${status === item.status ? 'selected' : ''}>${status}</option>`).join('')}</select>`;
+
+            const extras = `
+                <button class="btn btn-light btn-small" data-action="print-receipt" data-id="${item.id}">Recibo</button>
+                ${podePagar ? `<button class="btn btn-success btn-small" data-action="register-payment" data-id="${item.id}">Pagar</button>` : ''}
+                <button class="btn btn-light btn-small" data-action="rebook" data-id="${item.id}">Reagendar</button>
+            `;
+
+            return `
+                <div class="appointment-item ${compact ? 'appointment-item-compact' : ''}">
+                    <div class="appointment-time">${safe(item.hora)}</div>
+                    <div class="appointment-main">
+                        <strong>${safe(item.pet_nome || 'Pet removido')}</strong>
+                        <small>${safe(item.servico)}<span class="compact-hide"> · ${safe(item.tutor_nome || 'Sem tutor')}</span></small>
+                        <small class="compact-hide">Contratado: ${formatMoney(contratado)} · Pago: ${formatMoney(pago)} · Saldo: ${formatMoney(saldo)}</small>
+                        ${care}
+                    </div>
+                    <div class="appointment-meta">
+                        ${compact ? `<div class="compact-popup-only">${statusChip}${paymentChip}</div>` : `${statusChip}${paymentChip}`}
+                    </div>
+                    <div class="appointment-actions">
+                        ${compact ? `<div class="compact-popup-only">${statusSelect}${whatsapp}${extras}<button class="icon-btn" title="Editar" data-action="edit-appointment" data-id="${item.id}">✎</button><button class="icon-btn" title="Excluir" data-action="delete-appointment" data-id="${item.id}">×</button></div>` : `${statusSelect}${whatsapp}${extras}<button class="icon-btn" title="Editar" data-action="edit-appointment" data-id="${item.id}">✎</button><button class="icon-btn" title="Excluir" data-action="delete-appointment" data-id="${item.id}">×</button>`}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadTutors() {
+            $('#tutorsTable').innerHTML = `<tr><td colspan="5">${loading('Carregando tutores...')}</td></tr>`;
+            try { state.tutors = await api('/tutores'); renderTutors(); } catch (error) { const message = apiErrorMessage(error); $('#tutorsTable').innerHTML = `<tr><td colspan="5">${empty(message, '⚠️')}</td></tr>`; toast(message, 'error'); }
+        }
+        function renderTutors() {
+            const term = ($('#tutorFilter').value || '').toLowerCase(); const petsByTutor = state.pets.reduce((map, pet) => { map[pet.tutor_id] = (map[pet.tutor_id] || 0) + 1; return map; }, {});
+            const rows = state.tutors.filter(tutor => [tutor.nome, tutor.telefone, tutor.cpf].join(' ').toLowerCase().includes(term));
+            if (!rows.length) { $('#tutorsTable').innerHTML = `<tr><td colspan="5">${empty('Nenhum tutor encontrado.', '👤')}</td></tr>`; return; }
+            $('#tutorsTable').innerHTML = rows.map(tutor => `<tr><td><div class="person"><span class="person-avatar">${safe(initials(tutor.nome))}</span><span><strong>${safe(tutor.nome)}</strong></span></div></td><td>${safe(phoneDisplay(tutor.telefone))}</td><td>${safe(cpfDisplay(tutor.cpf))}</td><td>${petsByTutor[tutor.id] || 0} pet(s)</td><td class="actions-cell"><div class="row-actions"><button class="btn btn-light btn-small" data-action="view-tutor-profile" data-id="${tutor.id}">Perfil</button><button class="btn btn-light btn-small" data-action="edit-tutor" data-id="${tutor.id}">Editar</button><button class="btn btn-danger btn-small" data-action="delete-tutor" data-id="${tutor.id}">Excluir</button></div></td></tr>`).join('');
+        }
+
+        async function loadPets() {
+            $('#petsTable').innerHTML = `<tr><td colspan="5">${loading('Carregando pets...')}</td></tr>`;
+            try { state.pets = await api('/pets'); renderPets(); } catch (error) { const message = apiErrorMessage(error); $('#petsTable').innerHTML = `<tr><td colspan="5">${empty(message, '⚠️')}</td></tr>`; toast(message, 'error'); }
+        }
+        function renderPets() {
+            const term = ($('#petFilter').value || '').toLowerCase(); const rows = state.pets.filter(pet => [pet.nome, pet.raca, pet.tutor_nome, pet.especie].join(' ').toLowerCase().includes(term));
+            if (!rows.length) { $('#petsTable').innerHTML = `<tr><td colspan="5">${empty('Nenhum pet encontrado.', '🐶')}</td></tr>`; return; }
+            $('#petsTable').innerHTML = rows.map(pet => `<tr><td><div class="person"><span class="person-avatar">${pet.especie === 'Gato' ? '🐱' : '🐶'}</span><span><strong>${safe(pet.nome)}</strong></span></div></td><td>${safe(pet.tutor_nome || '—')}<br><span class="subtle">${safe(phoneDisplay(pet.tutor_telefone))}</span></td><td>${safe(pet.especie || '—')} · ${safe(pet.raca || 'Raça não informada')}<br><span class="subtle">Porte ${safe(pet.porte || 'não informado')}</span></td><td>${pet.observacoes ? `<span class="danger-text">⚠️ ${safe(pet.observacoes)}</span>` : '<span class="subtle">Sem observações</span>'}</td><td class="actions-cell"><div class="row-actions"><button class="btn btn-light btn-small" data-action="view-pet" data-id="${pet.id}">Perfil</button><button class="btn btn-light btn-small" data-action="edit-pet" data-id="${pet.id}">Editar</button><button class="btn btn-danger btn-small" data-action="delete-pet" data-id="${pet.id}">Excluir</button></div></td></tr>`).join('');
+        }
+
+        function printReceipt(id) {
+            const item = state.appointments.find(row => String(row.id) === String(id));
+            if (!item) return toast('Atendimento não encontrado.', 'error');
+            const receipt = window.open('', '_blank', 'width=520,height=680'); if (!receipt) return toast('Permita pop-ups para imprimir o recibo.', 'error');
+            receipt.document.write(`<html><head><title>Recibo PetCare</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#1f2937}h1{color:#5b21b6;font-size:22px}hr{border:0;border-top:1px solid #ddd;margin:18px 0}.row{display:flex;justify-content:space-between;margin:10px 0}.total{font-size:20px;font-weight:bold}</style></head><body><h1>PetCare</h1><p>Recibo de atendimento</p><hr><div class="row"><span>Data</span><strong>${safe(formatDate(item.data))} ${safe(item.hora)}</strong></div><div class="row"><span>Pet</span><strong>${safe(item.pet_nome || '—')}</strong></div><div class="row"><span>Tutor</span><strong>${safe(item.tutor_nome || '—')}</strong></div><div class="row"><span>Serviço</span><strong>${safe(item.servico)}</strong></div><hr><div class="row total"><span>Total</span><strong>${formatMoney(item.valor)}</strong></div><p>Obrigado pela confiança!</p><script>window.onload=function(){window.print()}<\/script></body></html>`); receipt.document.close();
+        }
+
+        async function loadFinancial() {
+            $('#financialTable').innerHTML = `<tr><td colspan="6">${loading('Carregando histórico...')}</td></tr>`;
+            try { const [summary, appointments] = await Promise.all([api('/financeiro/resumo'), api('/agendamentos')]); state.appointments = appointments; renderFinancial(appointments, summary); } catch (error) { const message = apiErrorMessage(error); $('#financialTable').innerHTML = `<tr><td colspan="6">${empty(message, '⚠️')}</td></tr>`; toast(message, 'error'); }
+        }
+        function renderFinancial(items, summary = null) {
+            const completed = items.filter(item => item.status === 'Entregue');
+            const totals = summary || { total: items.length, concluidos: completed.length, recebido: items.reduce((sum, item) => sum + Number(item.valor_pago || 0), 0), previsto: items.reduce((sum, item) => sum + Number(item.valor || 0), 0) };
+            $('#financialCount').textContent = totals.total;
+            $('#financialCompleted').textContent = totals.concluidos;
+            $('#financialReceived').textContent = formatMoney(totals.recebido);
+            $('#financialExpected').textContent = formatMoney(totals.previsto);
+            $('#financialTable').innerHTML = items.length ? items.map(item => `<tr><td>${formatDate(item.data)}<br><span class="subtle">${safe(item.hora)}</span></td><td><strong>${safe(item.pet_nome || '—')}</strong><br><span class="subtle">${safe(item.tutor_nome || '—')}</span></td><td>${safe(item.servico)}</td><td><span class="status ${statusClass(item.status)}">${safe(item.status)}</span><br><span class="subtle">Pagamento: ${formatMoney(item.valor_pago || 0)} · Saldo: ${formatMoney(item.saldo_devedor ?? item.valor)}</span></td><td class="money">${formatMoney(item.valor)}</td><td class="actions-cell"><div class="row-actions"><button class="btn btn-light btn-small" data-action="print-receipt" data-id="${item.id}">Recibo</button><button class="btn btn-primary btn-small" data-action="rebook" data-id="${item.id}">Reagendar</button><button class="btn btn-success btn-small" data-action="register-payment" data-id="${item.id}">Registrar pagamento</button>${Number(item.valor_pago || 0) > 0 ? `<button class="btn btn-light btn-small" data-action="view-payments" data-id="${item.id}">Pagamentos</button>` : ''}</div></td></tr>`).join('') : `<tr><td colspan="6">${empty('Nenhum serviço registrado.', '💰')}</td></tr>`;
+        }
+
+        async function recalculateFinancial() {
+            // Rebusca dados no backend e recalcula os totais exibidos (Financeiro e, se aberto, Visão geral).
+            try {
+                $('#financialTable').innerHTML = `<tr><td colspan="6">${loading('Recalculando totais e saldos...')}</td></tr>`;
+
+                const [summary, appointments] = await Promise.all([
+                    api('/financeiro/resumo'),
+                    api('/agendamentos')
+                ]);
+
+                state.appointments = Array.isArray(appointments) ? appointments : [];
+                renderFinancial(state.appointments, summary);
+                toast('Totais e saldos recalculados com sucesso.', 'success');
+
+                // Se o usuário estiver na Visão geral, atualiza os cards relacionados ao dia.
+                if (state.view === 'dashboard') {
+                    const [dashSummaryResult, todaysAppointmentsResult] = await Promise.allSettled([
+                        api('/dashboard/resumo'),
+                        api('/agendamentos/hoje')
+                    ]);
+
+                    if (dashSummaryResult.status === 'fulfilled') applyDashboardSummary(dashSummaryResult.value);
+                    if (todaysAppointmentsResult.status === 'fulfilled') {
+                        state.appointments = todaysAppointmentsResult.value;
+                        applyDashboardPending(todaysAppointmentsResult.value);
+                        renderDashboardKanban();
+                    }
+                }
+            } catch (error) {
+                const message = apiErrorMessage(error);
+                $('#financialTable').innerHTML = `<tr><td colspan="6">${empty(message, '⚠️')}</td></tr>`;
+                toast(message, 'error');
+            }
+        }
+
+        function renderServices() {
+            const target = $('#servicesCatalog'); if (!target) return;
+            const servicesFromState = Array.isArray(state.services) ? state.services : [];
+            // Se o catálogo não estiver carregado (ou vier vazio), mostramos o catálogo padrão.
+            const services = servicesFromState.length ? servicesFromState : FALLBACK_SERVICES;
+
+            target.innerHTML = services.map(service => {
+                const sid = service?.id ?? service?.service_id ?? service?.ID ?? service?.serviceId;
+                const hasId = sid !== null && sid !== undefined && String(sid).trim() !== '';
+                const ativo = service.ativo !== undefined ? Number(service.ativo) !== 0 : true;
+                const nome = service?.nome ?? service?.service_nome ?? service?.ServiceName;
+                const statusChip = `
+                    <button type="button" class="chip chip-toggle" data-action="toggle-service" data-id="${hasId ? sid : ''}" ${!hasId ? 'disabled' : ''} aria-label="${ativo ? 'Desativar serviço' : 'Ativar serviço'}" title="${ativo ? 'Desativar serviço' : 'Ativar serviço'}">
+                        ${ativo ? '✅ Ativo' : '⛔ Inativo'}
+                    </button>
+                `;
+
+                return `
+                    <div class="service-card">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                            <div>
+                                <h4>${safe(nome)}</h4>
+                                <p style="margin-top:0">${safe(service.descricao || 'Serviço de cuidado e bem-estar para seu pet.')}</p>
+                            </div>
+                            ${statusChip}
+                        </div>
+
+                        <div class="service-meta" style="margin-top:14px">
+                            <span>${formatMoney(service.preco)} · ${safe(service.duracao_minutos || 60)} min</span>
+                            <div class="row-actions">
+                                <button type="button" class="btn btn-light btn-small" data-action="book-service" data-service-id="${hasId ? sid : ''}" ${(!hasId || !ativo) ? 'disabled' : ''}>Agendar</button>
+                                <button type="button" class="btn btn-light btn-small" data-action="edit-service" data-id="${hasId ? sid : ''}">Editar</button>
+                            </div>
+                        </div>
+
+                        ${hasId && !ativo ? `<div class="help-text" style="margin-top:10px">Este serviço está inativo — para agendar, ative-o editando.</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        async function loadServiceCatalog() {
+            const previous = Array.isArray(state.services) ? state.services : [];
+            try {
+                const services = await api('/servicos?incluir_inativos=true');
+
+                if (Array.isArray(services) && services.length) {
+                    state.services = services;
+                    renderServices();
+                    return;
+                }
+
+                // Se veio vazio, preferimos preservar o estado atual (evita “sumir” após edições).
+                // Mas se for a primeira carga (estado vazio), mostramos o catálogo padrão.
+                if (previous.length) {
+                    toast('Catálogo de serviços vazio no servidor. Mantive o catálogo atual.', 'error');
+                    state.services = previous;
+                } else {
+                    toast('Catálogo de serviços vazio no servidor. Mostrando serviços padrão.', 'info');
+                    state.services = FALLBACK_SERVICES;
+                }
+            } catch (error) {
+                // Em falhas temporárias de rede/servidor, preservamos o que já está na tela.
+                toast(apiErrorMessage(error), 'error');
+                state.services = previous.length ? previous : FALLBACK_SERVICES;
+            }
+            renderServices();
+        }
+        async function loadReminders() {
+            if (!state.tutors.length) { try { state.tutors = await api('/tutores'); } catch (_) {} }
+            const select = document.querySelector('#reminderForm select[name="tutor_id"]');
+            if (select) select.innerHTML = '<option value="">Selecione...</option>' + state.tutors.map(t => `<option value="${t.id}">${safe(t.nome)} · ${safe(phoneDisplay(t.telefone))}</option>`).join('');
+            renderSavedReminders();
+        }
+        function savedReminders() { try { return JSON.parse(localStorage.getItem('petcare-reminders') || '[]'); } catch (_) { return []; } }
+        function renderSavedReminders() { const list = $('#reminderList'); if (!list) return; const rows = savedReminders(); list.innerHTML = rows.length ? `<h3 style="font-size:14px">Lembretes salvos</h3><div class="timeline">${rows.map(r => `<div class="timeline-item"><strong>${safe(r.tutor)} · ${safe(r.tipo)}</strong><small>${safe(r.date)} · ${safe(r.mensagem)}</small></div>`).join('')}</div>` : '<div class="subtle">Nenhum lembrete salvo neste navegador.</div>'; }
+        function reportDates() {
+            const start = $('#reportStart').value || '0000-01-01';
+            const end = $('#reportEnd').value || '9999-12-31';
+            return { start, end };
+        }
+        async function loadReports() {
+            const startField = $('#reportStart'); const endField = $('#reportEnd');
+            if (startField && !startField.value) startField.value = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+            if (endField && !endField.value) endField.value = today();
+            const { start, end } = reportDates();
+            $('#reportCards').innerHTML = loading('Calculando relatório...');
+            try {
+                const query = `?de=${encodeURIComponent(start)}&ate=${encodeURIComponent(end)}`;
+                const [financial, services, statuses] = await Promise.all([api(`/relatorios/faturamento${query}`), api(`/relatorios/servicos${query}`), api(`/relatorios/status${query}`)]);
+                const total = financial.total || { atendimentos: 0, faturamento: 0, concluidos: 0 };
+                const received = Number(financial.total_pago || 0);
+                const balance = Math.max(0, Number(financial.total_previsto || 0) - received);
+                const ticket = total.atendimentos ? Number(financial.total_previsto || 0) / total.atendimentos : 0;
+                $('#reportPeriodLabel').textContent = `${formatDate(start)} até ${formatDate(end)}`;
+                $('#reportCards').innerHTML = `<article class="stat-card"><div class="stat-label">Atendimentos</div><div class="report-value">${total.atendimentos}</div><div class="stat-note">no período selecionado</div></article><article class="stat-card"><div class="stat-label">Faturamento contratado</div><div class="report-value">${formatMoney(financial.total_previsto)}</div><div class="stat-note">serviços registrados</div></article><article class="stat-card"><div class="stat-label">Recebido</div><div class="report-value">${formatMoney(received)}</div><div class="stat-note">pagamentos confirmados</div></article><article class="stat-card"><div class="stat-label">Saldo a receber</div><div class="report-value">${formatMoney(balance)}</div><div class="stat-note">contratado menos recebido</div></article><article class="stat-card"><div class="stat-label">Concluídos</div><div class="report-value">${total.concluidos}</div><div class="stat-note">atendimentos entregues</div></article><article class="stat-card"><div class="stat-label">Ticket médio</div><div class="report-value">${formatMoney(ticket)}</div><div class="stat-note">por atendimento</div></article>`;
+                $('#reportServices').innerHTML = services.length ? services.map(row => `<tr><td><strong>${safe(row.servico)}</strong></td><td>${row.quantidade}</td><td class="money">${formatMoney(row.faturamento)}</td></tr>`).join('') : `<tr><td colspan="3">${empty('Nenhum serviço no período.', '▥')}</td></tr>`;
+                $('#reportStatuses').innerHTML = statuses.length ? statuses.map(row => `<tr><td><span class="status ${statusClass(row.status)}">${safe(row.status)}</span></td><td>${row.quantidade}</td><td class="money">${formatMoney(row.faturamento)}</td></tr>`).join('') : `<tr><td colspan="3">${empty('Nenhum atendimento no período.', '📊')}</td></tr>`;
+            } catch (error) { $('#reportCards').innerHTML = empty(apiErrorMessage(error), '⚠️'); toast(apiErrorMessage(error), 'error'); }
+        }
+
+        function openModal(type, data = null) {
+            const anyId = data?.id ?? data?.service_id ?? data?.ID ?? data?.serviceId ?? data?.agendamento_id ?? data?.appointment_id ?? null;
+            // Normaliza para não cair em "null"/"undefined" via string.
+            const normalizedId = (anyId === null || anyId === undefined || String(anyId).trim() === '') ? null : String(anyId).trim();
+            state.modalType = type;
+            state.editingId = normalizedId;
+            const isEdit = Boolean(state.editingId);
+            const modal = $('#modalBox');
+            if (type === 'tutor') modal.innerHTML = tutorForm(data, isEdit);
+            if (type === 'pet') modal.innerHTML = petForm(data, isEdit);
+            if (type === 'appointment') modal.innerHTML = appointmentForm(data, isEdit);
+            if (type === 'service') modal.innerHTML = serviceForm(data, isEdit);
+            if (type === 'payment') modal.innerHTML = paymentForm(data);
+            if (type === 'payment-edit') modal.innerHTML = paymentEditForm(data);
+            if (type === 'payment-refund') modal.innerHTML = paymentRefundForm(data);
+            $('#modalBackdrop').classList.add('open'); setTimeout(() => $('#modalBox input, #modalBox select, #modalBox textarea')?.focus(), 20);
+        }
+        function closeModal() { $('#modalBackdrop').classList.remove('open'); state.modalType = null; state.editingId = null; }
+        async function openPetProfile(id) {
+            try {
+                const pet = state.pets.find(item => String(item.id) === String(id)) || await api(`/pets/${id}`);
+                const allAppointments = await api('/agendamentos');
+                state.appointments = Array.isArray(allAppointments) ? allAppointments : [];
+                const appointments = state.appointments.filter(item => String(item.pet_id) === String(id)).sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`));
+                state.profilePet = pet; state.modalType = 'profile';
+                $('#modalBox').innerHTML = `<div class="modal-header"><h3>Perfil e histórico</h3><button class="icon-btn" data-action="close-modal">×</button></div><div class="modal-body"><div class="profile-header"><span class="person-avatar">${pet.especie === 'Gato' ? '🐱' : '🐶'}</span><div><h3>${safe(pet.nome)}</h3><p>${safe(pet.especie || 'Pet')} · ${safe(pet.raca || 'Raça não informada')} · Tutor: ${safe(pet.tutor_nome || '—')}</p></div></div><div class="chip-list" style="margin:18px 0"><span class="chip">Porte: ${safe(pet.porte || 'não informado')}</span><span class="chip">${appointments.length} atendimento(s)</span></div>${pet.observacoes ? `<div class="notice info"><strong>Cuidados:</strong> ${safe(pet.observacoes)}</div>` : ''}<h3 style="font-size:14px;margin:18px 0 9px">Histórico de atendimentos</h3>${appointments.length ? `<div class="timeline">${appointments.map(item => `<div class="timeline-item"><strong>${formatDate(item.data)} às ${safe(item.hora)} · ${safe(item.servico)}</strong><small>${safe(item.status)} · ${formatMoney(item.valor)}${item.observacoes ? ` · ${safe(item.observacoes)}` : ''}</small></div>`).join('')}</div>` : empty('Nenhum atendimento no histórico.', '🗂️')}</div><div class="modal-footer"><button class="btn btn-light" data-action="close-modal">Fechar</button>${appointments.length ? '<button class="btn btn-primary" data-action="rebook" data-id="' + appointments[0].id + '">Reagendar</button>' : ''}</div>`;
+                $('#modalBackdrop').classList.add('open');
+            } catch (error) { toast(apiErrorMessage(error), 'error'); }
+        }
+        async function openTutorProfile(id) {
+            try {
+                const tutor = state.tutors.find(item => String(item.id) === String(id)) || await api(`/tutores/${id}`);
+                if (!state.pets.length) state.pets = await api('/pets');
+
+                const petIds = state.pets.filter(p => String(p.tutor_id) === String(id)).map(p => p.id);
+                const allAppointments = await api('/agendamentos');
+                state.appointments = Array.isArray(allAppointments) ? allAppointments : [];
+
+                const appointments = state.appointments
+                    .filter(item => petIds.map(String).includes(String(item.pet_id)))
+                    .sort((a, b) => `${b.data} ${b.hora}`.localeCompare(`${a.data} ${a.hora}`));
+
+                state.modalType = 'profile';
+
+                $('#modalBox').innerHTML = `<div class="modal-header"><h3>Perfil e histórico</h3><button class="icon-btn" data-action="close-modal">×</button></div><div class="modal-body"><div class="profile-header"><span class="person-avatar">${safe(initials(tutor.nome))}</span><div><h3>${safe(tutor.nome)}</h3><p>${safe(phoneDisplay(tutor.telefone))} · CPF: ${safe(cpfDisplay(tutor.cpf))}</p></div></div><div class="chip-list" style="margin:18px 0"><span class="chip">${petIds.length} pet(s)</span><span class="chip">${appointments.length} atendimento(s)</span></div><h3 style="font-size:14px;margin:18px 0 9px">Histórico de atendimentos</h3>${appointments.length ? `<div class="timeline">${appointments.map(item => `<div class="timeline-item"><strong>${formatDate(item.data)} às ${safe(item.hora)} · ${safe(item.pet_nome || 'Pet removido')} · ${safe(item.servico)}</strong><small>${safe(item.status)} · ${formatMoney(item.valor)}${item.observacoes ? ` · ${safe(item.observacoes)}` : ''}</small></div>`).join('')}</div>` : empty('Nenhum atendimento no histórico.', '🗂️')}</div><div class="modal-footer"><button class="btn btn-light" data-action="close-modal">Fechar</button>${appointments.length ? '<button class="btn btn-primary" data-action="rebook" data-id="' + appointments[0].id + '">Reagendar</button>' : ''}</div>`;
+
+                $('#modalBackdrop').classList.add('open');
+            } catch (error) {
+                toast(apiErrorMessage(error), 'error');
+            }
+        }
+
+        function tutorForm(data, edit) { return `<div class="modal-header"><h3>${edit ? 'Editar tutor' : 'Novo tutor'}</h3><button class="icon-btn" data-action="close-modal">×</button></div><form id="tutorForm"><div class="modal-body"><div class="form-grid"><div class="form-group full"><label>Nome completo <span>*</span></label><input class="form-control" name="nome" required value="${safe(data?.nome)}" placeholder="Ex.: Ana Souza"></div><div class="form-group"><label>Telefone <span>*</span></label><input class="form-control" name="telefone" required maxlength="15" value="${safe(phoneDisplay(data?.telefone))}" placeholder="(11) 99999-9999"></div><div class="form-group"><label>CPF</label><input class="form-control" name="cpf" maxlength="14" value="${safe(cpfDisplay(data?.cpf))}" placeholder="000.000.000-00"></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button><button class="btn btn-primary">${edit ? 'Salvar alterações' : 'Cadastrar tutor'}</button></div></form>`; }
+        function petForm(data, edit) { const options = state.tutors.map(tutor => `<option value="${tutor.id}" ${String(tutor.id) === String(data?.tutor_id) ? 'selected' : ''}>${safe(tutor.nome)}</option>`).join(''); const tutorMode = edit ? 'existing' : 'existing'; return `<div class="modal-header"><h3>${edit ? 'Editar pet' : 'Cadastrar pet'}</h3><button class="icon-btn" data-action="close-modal">×</button></div><form id="petForm" data-tutor-mode="${tutorMode}"><div class="modal-body"><div class="form-group full" style="margin-bottom:16px"><label>Responsável pelo pet <span>*</span></label>${edit ? '<div class="help-text">O tutor do pet não pode ser alterado neste formulário.</div>' : '<div class="filter-group"><button type="button" class="btn btn-light btn-small" data-action="pet-tutor-mode" data-mode="existing">Escolher tutor existente</button><button type="button" class="btn btn-light btn-small" data-action="pet-tutor-mode" data-mode="new">＋ Cadastrar novo tutor</button></div>'}</div><div id="existingTutorFields" class="form-grid"><div class="form-group full"><label>Tutor existente <span>*</span></label><select class="form-control" name="tutor_id" required ${!state.tutors.length ? 'disabled' : ''}><option value="">Selecione...</option>${options}</select>${!state.tutors.length ? '<div class="help-text">Ainda não há tutores cadastrados. Escolha “Cadastrar novo tutor”.</div>' : ''}</div></div><div id="newTutorFields" class="form-grid" hidden><div class="form-group"><label>Nome do tutor <span>*</span></label><input class="form-control" name="tutor_nome" maxlength="200" placeholder="Ex.: Ana Souza"></div><div class="form-group"><label>Telefone <span>*</span></label><input class="form-control" name="tutor_telefone" maxlength="15" placeholder="(11) 99999-9999"></div><div class="form-group"><label>CPF</label><input class="form-control" name="tutor_cpf" maxlength="14" placeholder="000.000.000-00"></div></div><div class="form-grid" style="margin-top:15px"><div class="form-group"><label>Nome do pet <span>*</span></label><input class="form-control" name="nome" required value="${safe(data?.nome)}" placeholder="Ex.: Thor"></div><div class="form-group"><label>Espécie</label><select class="form-control" name="especie"><option ${data?.especie === 'Cão' || !data?.especie ? 'selected' : ''}>Cão</option><option ${data?.especie === 'Gato' ? 'selected' : ''}>Gato</option><option ${data?.especie === 'Outro' ? 'selected' : ''}>Outro</option></select></div><div class="form-group"><label>Raça</label><input class="form-control" name="raca" value="${safe(data?.raca)}" placeholder="Ex.: Golden Retriever"></div><div class="form-group"><label>Porte</label><select class="form-control" name="porte"><option value="">Não informado</option><option ${data?.porte === 'Pequeno' ? 'selected' : ''}>Pequeno</option><option ${data?.porte === 'Médio' ? 'selected' : ''}>Médio</option><option ${data?.porte === 'Grande' ? 'selected' : ''}>Grande</option></select></div><div class="form-group"><label>Data de nascimento</label><input class="form-control" type="date" name="data_nascimento" value="${safe(data?.data_nascimento)}"></div><div class="form-group"><label>Peso (kg)</label><input class="form-control" type="number" min="0" step="0.01" name="peso" value="${safe(data?.peso)}"></div><div class="form-group full"><label>Alergias</label><textarea class="form-control" name="alergias" placeholder="Alergias conhecidas...">${safe(data?.alergias)}</textarea></div><div class="form-group full"><label>Histórico médico</label><textarea class="form-control" name="historico_medico" placeholder="Condições, medicamentos e observações clínicas...">${safe(data?.historico_medico)}</textarea></div><div class="form-group full"><label>Observações e cuidados especiais</label><textarea class="form-control" name="observacoes" placeholder="Comportamento, cuidados...">${safe(data?.observacoes)}</textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button><button class="btn btn-primary">${edit ? 'Salvar alterações' : 'Cadastrar pet'}</button></div></form>`; }
+        function setPetTutorMode(mode) { const form = $('#petForm'); if (!form || form.dataset.tutorMode === 'existing' && mode === 'existing') return; form.dataset.tutorMode = mode; const existing = $('#existingTutorFields'); const next = $('#newTutorFields'); const existingSelect = form.elements.tutor_id; const newFields = [form.elements.tutor_nome, form.elements.tutor_telefone, form.elements.tutor_cpf]; const isNew = mode === 'new'; existing.hidden = isNew; next.hidden = !isNew; existingSelect.disabled = isNew; existingSelect.required = !isNew; if (isNew) existingSelect.value = ''; newFields.forEach((field) => { field.required = isNew && field.name !== 'tutor_cpf'; }); if (isNew) { form.elements.tutor_nome.focus(); } }
+        function appointmentForm(data, edit) { const selectedPet = state.pets.find(pet => String(pet.id) === String(data?.pet_id)); const services = (state.services.length ? state.services : FALLBACK_SERVICES).filter(service => service.id ? service.ativo !== 0 : true); const isCustom = data && !data.service_id && data.servico && !services.some(service => service.nome === data.servico); return `<div class="modal-header"><h3>${edit ? 'Editar agendamento' : 'Novo agendamento'}</h3><button class="icon-btn" data-action="close-modal">×</button></div><form id="appointmentForm"><div class="modal-body">${!state.pets.length ? '<div class="notice info">Cadastre um pet antes de criar um agendamento.</div>' : ''}<div class="form-grid"><div class="form-group full"><label>Pet <span>*</span></label><div class="pet-picker"><input class="form-control" type="search" name="pet_search" autocomplete="off" placeholder="Busque por nome do pet, tutor ou telefone..." value="${safe(selectedPet ? `${selectedPet.nome} — ${selectedPet.tutor_nome || ''}` : '')}" ${edit || !state.pets.length ? 'disabled' : ''}><input type="hidden" name="pet_id" value="${safe(data?.pet_id || '')}" required><div class="pet-picker-results" id="petPickerResults"></div></div><div class="help-text">Digite pelo menos 2 letras ou números para filtrar pets e tutores.</div></div><div class="form-group"><label>Data <span>*</span></label><input class="form-control" type="date" name="data" required value="${safe(data?.data || today())}"></div><div class="form-group"><label>Horário <span>*</span></label><input class="form-control" type="time" name="hora" required value="${safe(data?.hora || '09:00')}"></div><div class="form-group"><label>Serviço <span>*</span></label><select class="form-control" name="service_id"><option value="">${isCustom ? 'Serviço personalizado' : 'Selecione...'}</option>${services.map(service => `<option value="${safe(service.id || '')}" data-price="${safe(service.preco)}" data-duration="${safe(service.duracao_minutos || 60)}" ${(data?.service_id ? String(data.service_id) === String(service.id) : !isCustom && data?.servico === service.nome) ? 'selected' : ''}>${safe(service.nome)} · ${formatMoney(service.preco)}</option>`).join('')}<option value="custom" ${isCustom ? 'selected' : ''}>Serviço personalizado</option></select></div><div class="form-group" id="customServiceGroup" ${isCustom ? '' : 'hidden'}><label>Nome do serviço personalizado <span>*</span></label><input class="form-control" name="servico_custom" value="${safe(isCustom ? data.servico : '')}" placeholder="Ex.: Corte especial"></div><input type="hidden" name="servico" value="${safe(data?.servico || '')}"><div class="form-group"><label>Valor (R$)</label><input class="form-control" type="number" name="valor" min="0" step="0.01" value="${safe(data?.valor ?? '')}" placeholder="0,00"><div class="help-text">Valor vazio ou zero usa o preço do catálogo.</div></div><div class="form-group"><label>Duração (min)</label><input class="form-control" type="number" name="duracao_minutos" min="1" max="1440" value="${safe(data?.duracao_minutos || 60)}"></div><div class="form-group full"><label>Observações</label><textarea class="form-control" name="observacoes" placeholder="Alguma informação para o atendimento...">${safe(data?.observacoes)}</textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button><button class="btn btn-primary" ${!state.pets.length ? 'disabled' : ''}>${edit ? 'Salvar alterações' : 'Criar agendamento'}</button></div></form>`; }
+        function paymentForm(data) { const total = Number(data?.valor || 0); const paid = Number(data?.valor_pago || 0); const balance = Math.max(0, total - paid); return `<div class="modal-header"><h3>Registrar pagamento</h3><button class="icon-btn" data-action="close-modal">×</button></div><form id="paymentForm"><div class="modal-body"><div class="notice info">Total: <strong>${formatMoney(total)}</strong> · Já pago: <strong>${formatMoney(paid)}</strong> · Saldo: <strong>${formatMoney(balance)}</strong></div><div class="form-grid"><div class="form-group"><label>Valor pago <span>*</span></label><input class="form-control" type="number" name="valor" min="0.01" max="${balance.toFixed(2)}" step="0.01" required value="${balance.toFixed(2)}"></div><div class="form-group"><label>Método <span>*</span></label><select class="form-control" name="metodo" required><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option><option>Outro</option></select></div><div class="form-group full"><label>Referência</label><input class="form-control" name="referencia" maxlength="200" placeholder="Ex.: comprovante ou identificação"></div><div class="form-group full"><label>Observações</label><textarea class="form-control" name="observacoes" placeholder="Observações do pagamento..."></textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button><button class="btn btn-primary">Salvar pagamento</button></div></form>`; }
+
+        function paymentEditForm(payment) {
+            const status = String(payment?.status || 'pago').toLowerCase();
+            const mapStatus = { pago: 'pago', pendente: 'pendente', estornado: 'estornado', cancelado: 'cancelado' }; // 'parcial' tratado como 'pago' no backend (evita falha)
+            const statusValue = mapStatus[status] || 'pago';
+            const saldo = Number(payment?.saldo_devedor ?? 0);
+            const max = Number.isFinite(saldo) && saldo > 0 ? saldo.toFixed(2) : '999999';
+
+            return `
+                <div class="modal-header"><h3>Editar pagamento</h3><button class="icon-btn" data-action="close-modal">×</button></div>
+                <form id="paymentEditForm">
+                    <div class="modal-body">
+                        <div class="notice info">ID: <strong>${safe(payment?.id)}</strong>${Number.isFinite(saldo) ? ` · Saldo do atendimento: <strong>${formatMoney(saldo)}</strong>` : ''}</div>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Valor <span>*</span></label><input class="form-control" type="number" name="valor" min="0" max="${max}" step="0.01" required value="${safe(Number(payment?.valor || 0).toFixed(2))}"></div>
+                            <div class="form-group"><label>Método <span>*</span></label><input class="form-control" name="metodo" maxlength="40" required value="${safe(payment?.metodo || 'Pix')}"></div>
+                            <div class="form-group"><label>Status <span>*</span></label><select class="form-control" name="status" required>
+                                <option value="pago" ${statusValue === 'pago' ? 'selected' : ''}>pago</option>
+                                <option value="pendente" ${statusValue === 'pendente' ? 'selected' : ''}>pendente</option>
+                                <option value="estornado" ${statusValue === 'estornado' ? 'selected' : ''}>estornado</option>
+                                <option value="cancelado" ${statusValue === 'cancelado' ? 'selected' : ''}>cancelado</option>
+                            </select></div>
+                            <div class="form-group full"><label>Referência</label><input class="form-control" name="referencia" maxlength="200" value="${safe(payment?.referencia || '')}" placeholder="Ex.: comprovante ou identificação"></div>
+                            <div class="form-group full"><label>Observações</label><textarea class="form-control" name="observacoes" placeholder="Observações do pagamento...">${safe(payment?.observacoes || '')}</textarea></div>
+                            <div class="form-group full"><label>Motivo da alteração <span>*</span></label><textarea class="form-control" name="motivo" maxlength="5000" required placeholder="Descreva o motivo para auditabilidade...">${safe(payment?.motivo || '')}</textarea></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button><button class="btn btn-primary">Salvar alterações</button></div>
+                </form>
+            `;
+        }
+
+        function paymentRefundForm(payment) {
+            const saldo = Number(payment?.saldo_devedor ?? 0);
+            return `
+                <div class="modal-header"><h3>Estornar pagamento</h3><button class="icon-btn" data-action="close-modal">×</button></div>
+                <form id="paymentRefundForm">
+                    <div class="modal-body">
+                        <div class="notice notice-warn">Ao estornar, este pagamento passa a não contar como pago no financeiro.</div>
+                        ${Number.isFinite(saldo) ? `<div class="notice info">Saldo do atendimento: <strong>${formatMoney(saldo)}</strong></div>` : ''}
+                        <div class="form-grid">
+                            <div class="form-group"><label>Motivo do estorno <span>*</span></label><textarea class="form-control" name="motivo" maxlength="5000" required placeholder="Ex.: pagamento em duplicidade, cancelamento do serviço...">${safe(payment?.motivo || '')}</textarea></div>
+                            <div class="form-group full"><label>Observações</label><textarea class="form-control" name="observacoes" maxlength="5000" placeholder="Observações adicionais...">${safe(payment?.observacoes || '')}</textarea></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button><button class="btn btn-primary">Confirmar estorno</button></div>
+                </form>
+            `;
+        }
+        function serviceForm(data, edit) { return `<div class="modal-header"><h3>${edit ? 'Editar serviço' : 'Novo serviço'}</h3><button class="icon-btn" data-action="close-modal">×</button></div><form id="serviceForm"><div class="modal-body"><div class="form-grid"><div class="form-group full"><label>Nome <span>*</span></label><input class="form-control" name="nome" required maxlength="120" value="${safe(data?.nome)}" placeholder="Ex.: Banho premium"></div><div class="form-group full"><label>Descrição</label><textarea class="form-control" name="descricao" placeholder="Detalhes do serviço...">${safe(data?.descricao)}</textarea></div><div class="form-group"><label>Preço (R$) <span>*</span></label><input class="form-control" type="number" name="preco" min="0" step="0.5" required value="${safe(data?.preco ?? 0)}"></div><div class="form-group"><label>Duração (min)</label><input class="form-control" type="number" name="duracao_minutos" min="1" max="1440" value="${safe(data?.duracao_minutos || 60)}"></div><div class="form-group full"><label><input type="checkbox" name="ativo" ${Number(data?.ativo ?? 0) !== 0 ? 'checked' : ''}> Serviço ativo</label></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button><button class="btn btn-primary">${edit ? 'Salvar alterações' : 'Cadastrar serviço'}</button></div></form>`; }
+
+        function formatPhoneInput(input) { let d = digits(input.value).slice(0, 11); input.value = d.length <= 10 ? d.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, (_, a, b, c) => `(${a}) ${b}${c ? '-' + c : ''}`) : d.replace(/^(\d{2})(\d{5})(\d{0,4}).*/, (_, a, b, c) => `(${a}) ${b}${c ? '-' + c : ''}`); }
+        function formatCpfInput(input) { const d = digits(input.value).slice(0, 11); input.value = d.replace(/^(\d{3})(\d{3})(\d{3})(\d{0,2}).*/, (_, a, b, c, e) => `${a}${b ? '.' + b : ''}${c ? '.' + c : ''}${e ? '-' + e : ''}`); }
+
+        async function submitTutor(form) { const body = { nome: form.nome.value.trim(), telefone: digits(form.telefone.value), cpf: digits(form.cpf.value) || null }; if (!body.nome || body.telefone.length < 10) throw new Error('Informe nome e telefone válido.'); const id = state.editingId; if (id) await api(`/tutores/${id}`, { method: 'PUT', body: JSON.stringify(body) }); else await api('/tutores', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast(id ? 'Tutor atualizado com sucesso.' : 'Tutor cadastrado com sucesso.'); await refreshData(); }
+        async function submitPet(form) { const mode = form.dataset.tutorMode || 'existing'; const pet = { nome: form.nome.value.trim(), especie: form.especie.value, raca: form.raca.value.trim(), porte: form.porte.value, observacoes: form.observacoes.value.trim(), data_nascimento: form.data_nascimento.value || null, peso: form.peso.value === '' ? null : Number(form.peso.value), alergias: form.alergias.value.trim(), historico_medico: form.historico_medico.value.trim() }; if (!pet.nome) throw new Error('Informe o nome do pet.'); const id = state.editingId; const button = form.querySelector('button.btn-primary'); if (button) { button.disabled = true; button.textContent = 'Salvando...'; } try { if (id) { if (!form.tutor_id.value) throw new Error('Tutor do pet não encontrado.'); await api(`/pets/${id}`, { method: 'PUT', body: JSON.stringify(pet) }); } else if (mode === 'new') { const tutor = { nome: form.tutor_nome.value.trim(), telefone: digits(form.tutor_telefone.value), cpf: digits(form.tutor_cpf.value) || null }; if (!tutor.nome || tutor.telefone.length < 10) throw new Error('Informe nome e telefone válido para o novo tutor.'); await api('/pets-com-tutor', { method: 'POST', body: JSON.stringify({ tutor, pet }) }); } else { const body = { tutor_id: form.tutor_id.value, ...pet }; if (!body.tutor_id) throw new Error('Selecione o tutor do pet.'); await api('/pets', { method: 'POST', body: JSON.stringify(body) }); } closeModal(); toast(id ? 'Pet atualizado com sucesso.' : mode === 'new' ? 'Tutor e pet cadastrados com sucesso.' : 'Pet cadastrado com sucesso.'); await refreshData(); } finally { if (button) { button.disabled = false; button.textContent = id ? 'Salvar alterações' : 'Cadastrar pet'; } } }
+        async function submitAppointment(form) { const selected = form.service_id.options[form.service_id.selectedIndex]; const custom = form.service_id.value === 'custom'; const customName = form.servico_custom?.value.trim() || ''; const body = { pet_id: form.pet_id.value, data: form.data.value, hora: form.hora.value, service_id: custom ? null : (form.service_id.value || null), servico: custom ? customName : (selected?.textContent.split(' · ')[0] || form.servico.value), valor: form.valor.value === '' ? undefined : Number(form.valor.value), duracao_minutos: Number(form.duracao_minutos.value || 60), observacoes: form.observacoes.value.trim() }; if (!body.data || !body.hora || (!body.service_id && !body.servico) || (!state.editingId && !body.pet_id)) throw new Error('Preencha pet, data, horário e serviço.'); const id = state.editingId; if (id) await api(`/agendamentos/${id}`, { method: 'PUT', body: JSON.stringify(body) }); else await api('/agendamentos', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast(id ? 'Agendamento atualizado com sucesso.' : 'Agendamento criado com sucesso.'); await refreshOperationalData(); }
+        async function submitService(form) { const body = { nome: form.nome.value.trim(), descricao: form.descricao.value.trim(), preco: Number(form.preco.value), duracao_minutos: Number(form.duracao_minutos.value || 60), ativo: form.ativo.checked }; if (!body.nome || !Number.isFinite(body.preco)) throw new Error('Informe nome e preço válidos.'); const id = state.editingId; await api(id ? `/servicos/${id}` : '/servicos', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) }); closeModal(); toast(id ? 'Serviço atualizado com sucesso.' : 'Serviço cadastrado com sucesso.'); await loadServiceCatalog(); }
+        async function submitPayment(form) { const id = state.editingId; const body = { valor: Number(form.valor.value), metodo: form.metodo.value, referencia: form.referencia.value.trim(), observacoes: form.observacoes.value.trim(), status: 'pago' }; if (!id || !body.valor || body.valor < 0) throw new Error('Informe um valor de pagamento válido.'); await api(`/agendamentos/${id}/pagamentos`, { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Pagamento registrado com sucesso.'); await refreshOperationalData(); }
+        async function submitPaymentEdit(form) {
+            const id = state.editingId;
+            const statusRaw = form.status.value;
+            const body = {
+                valor: Number(form.valor.value),
+                metodo: (form.metodo.value || '').trim(),
+                status: statusRaw === 'parcial' ? 'pago' : statusRaw,
+                referencia: (form.referencia.value || '').trim(),
+                observacoes: (form.observacoes.value || '').trim(),
+                motivo: (form.motivo.value || '').trim()
+            };
+
+            if (!id || !body.valor || body.valor < 0) throw new Error('Informe um valor de pagamento válido.');
+            if (!body.metodo) throw new Error('Informe o método do pagamento.');
+            if (!body.status) throw new Error('Informe o status do pagamento.');
+            if (!body.motivo) throw new Error('Informe o motivo da alteração.');
+
+            await api(`/pagamentos/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+            closeModal();
+            toast('Pagamento atualizado com sucesso.');
+            await refreshOperationalData();
+        }
+
+        async function submitPaymentRefund(form) {
+            const id = state.editingId;
+            const body = {
+                motivo: (form.motivo.value || '').trim(),
+                observacoes: (form.observacoes.value || '').trim()
+            };
+
+            if (!id) throw new Error('Pagamento inválido.');
+            if (!body.motivo) throw new Error('Informe o motivo do estorno.');
+
+            await api(`/pagamentos/${id}/estornar`, { method: 'POST', body: JSON.stringify(body) });
+            closeModal();
+            toast('Pagamento estornado com sucesso.');
+            await refreshOperationalData();
+        }
+
+        async function viewPayments(id) { try { const [appointment, payments] = await Promise.all([api(`/agendamentos/${id}`), api(`/agendamentos/${id}/pagamentos`)]); state.paymentModalAppointment = appointment; state.paymentModalPayments = Array.isArray(payments) ? payments : [];
+            const rows = state.paymentModalPayments.length ? state.paymentModalPayments.map(payment => {
+                const status = safe(payment.status);
+                const referencia = payment.referencia ? ` · ${safe(payment.referencia)}` : '';
+                const pagoEm = payment.pago_em ? ` · ${safe(payment.pago_em)}` : '';
+                const pId = safe(payment.id);
+                const canRefund = ['estornado', 'cancelado'].indexOf(String(payment.status || '').toLowerCase()) === -1;
+
+                return `<div class="timeline-item"><strong>${formatMoney(payment.valor)} · ${safe(payment.metodo)}</strong><small>${status}${referencia}${pagoEm}</small><div class="row-actions" style="margin-top:6px">` +
+                    `<button class="btn btn-light btn-small" type="button" data-action="edit-payment" data-id="${pId}">Editar</button>` +
+                    (canRefund ? ` <button class="btn btn-danger btn-small" type="button" data-action="refund-payment" data-id="${pId}">Estornar</button>` : '') +
+                    `</div></div>`;
+            }).join('') : empty('Nenhum pagamento registrado.', '💳');
+
+            $('#modalBox').innerHTML = `<div class="modal-header"><h3>Pagamentos do atendimento</h3><button class="icon-btn" data-action="close-modal">×</button></div><div class="modal-body"><div class="notice info">Contratado: <strong>${formatMoney(appointment.valor)}</strong> · Pago: <strong>${formatMoney(appointment.valor_pago)}</strong> · Saldo: <strong>${formatMoney(appointment.saldo_devedor)}</strong></div><div class="timeline">${rows}</div></div><div class="modal-footer"><button class="btn btn-light" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="register-payment" data-id="${id}">Registrar pagamento</button></div>`;
+            $('#modalBackdrop').classList.add('open');
+        } catch (error) { toast(apiErrorMessage(error), 'error'); } }
+
+        async function refreshData() { if (state.view === 'dashboard') return loadDashboard(); if (state.view === 'agenda') return loadAgenda(); if (state.view === 'pets') return loadPets(); if (state.view === 'tutores') return Promise.all([loadTutors(), loadPets()]); if (state.view === 'servicos') return loadServiceCatalog(); if (state.view === 'lembretes') return loadReminders(); if (state.view === 'relatorios') return loadReports(); return loadFinancial(); }
+        async function refreshOperationalData() { const tasks = [loadDashboard(), loadFinancial()]; if (state.view === 'agenda') tasks.push(loadAgenda()); if (state.view === 'relatorios') tasks.push(loadReports()); await Promise.all(tasks); }
+        async function editTutor(id) { try { const tutor = state.tutors.find(item => String(item.id) === String(id)) || await api(`/tutores/${id}`); openModal('tutor', tutor); } catch (error) { toast(error.message, 'error'); } }
+        async function editPet(id) { try { const pet = state.pets.find(item => String(item.id) === String(id)) || await api(`/pets/${id}`); if (!state.tutors.length) state.tutors = await api('/tutores'); openModal('pet', pet); } catch (error) { toast(error.message, 'error'); } }
+        async function editAppointment(id) { try { const item = state.appointments.find(row => String(row.id) === String(id)) || (await api('/agendamentos')).find(row => String(row.id) === String(id)); if (!state.pets.length) state.pets = await api('/pets'); openModal('appointment', item); } catch (error) { toast(error.message, 'error'); } }
+        async function remove(resource, id) { if (!confirm('Tem certeza que deseja excluir este registro?')) return; try { await api(`/${resource}/${id}`, { method: 'DELETE' }); toast('Registro excluído com sucesso.'); await refreshData(); } catch (error) { toast(error.message, 'error'); } }
+        async function changeStatus(id, status) { try { const result = await api(`/agendamentos/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }); if (result.appointment) { const index = state.appointments.findIndex(item => String(item.id) === String(id)); if (index >= 0) state.appointments[index] = result.appointment; } toast('Status atualizado.'); await refreshOperationalData(); } catch (error) { toast(error.message, 'error'); } }
+        function openWhatsApp(id) {
+            const item = state.appointments.find(row => String(row.id) === String(id));
+            const phone = formatTutorPhone(item?.tutor_telefone);
+            if (!item || !phone) return toast('Este agendamento não possui telefone válido do tutor.', 'error');
+            const message = `Olá, ${item.tutor_nome || 'tutor'}! O ${item.pet_nome || 'seu pet'} já está pronto no PetCare. 🐾`;
+            window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+        }
+
+        function renderPetPicker(term = '') { const results = $('#petPickerResults'); if (!results) return; const query = term.trim().toLowerCase(); const matches = state.pets.filter(pet => [pet.nome, pet.tutor_nome, pet.tutor_telefone, pet.raca, pet.especie].join(' ').toLowerCase().includes(query)).slice(0, 30); if (!query || query.length < 2) { results.innerHTML = ''; results.classList.remove('open'); return; } results.innerHTML = matches.length ? matches.map(pet => `<button type="button" class="pet-picker-result" data-action="select-pet" data-id="${pet.id}"><strong>${safe(pet.nome)} · ${safe(pet.especie || 'Pet')}</strong><small>Tutor: ${safe(pet.tutor_nome || '—')} · ${safe(phoneDisplay(pet.tutor_telefone))}${pet.raca ? ` · ${safe(pet.raca)}` : ''}</small></button>`).join('') : '<div class="empty">Nenhum pet ou tutor encontrado.</div>'; results.classList.add('open'); }
+        async function globalSearch(term) { if (term.trim().length < 2) { $('#searchResults').classList.remove('open'); return; } try { const result = await api(`/busca?termo=${encodeURIComponent(term)}`); const tutors = result.tutores || []; const pets = result.pets || []; if (!tutors.length && !pets.length) { $('#searchResults').innerHTML = '<div class="empty">Nenhum resultado.</div>'; } else { $('#searchResults').innerHTML = `${tutors.length ? '<div class="result-title">Tutores</div>' + tutors.map(item => `<button class="search-result" data-search-view="tutores" data-search-kind="tutor" data-id="${safe(item.id)}"><strong>${safe(item.nome)}</strong><small>${safe(phoneDisplay(item.telefone))}</small></button>`).join('') : ''}${pets.length ? '<div class="result-title">Pets</div>' + pets.map(item => `<button class="search-result" data-search-view="pets" data-search-kind="pet" data-id="${safe(item.id)}"><strong>${safe(item.nome)}</strong><small>${safe(item.tutor_nome || 'Sem tutor')}</small></button>`).join('') : ''}`; } $('#searchResults').classList.add('open'); } catch (error) { toast(apiErrorMessage(error), 'error'); } }
+
+        document.addEventListener('click', async (event) => {
+            const nav = event.target.closest('[data-view]'); if (nav) { navigate(nav.dataset.view); return; }
+            const viewLink = event.target.closest('[data-view-link]'); if (viewLink) { navigate(viewLink.dataset.viewLink); return; }
+            const action = event.target.closest('[data-action]'); if (!action) return;
+            const id = action.dataset.id;
+            try {
+                if (action.dataset.action === 'new-tutor') { openModal('tutor'); return; }
+                if (action.dataset.action === 'new-service') { openModal('service'); return; }
+                if (action.dataset.action === 'edit-service') {
+                    const wanted = id;
+                    const wantedStr = String(wanted ?? '').trim();
+
+                    // 1) Primeiro tenta achar pelo ID no state.
+                    const service = state.services.find(item => {
+                        const sid = item?.id ?? item?.service_id ?? item?.ID ?? item?.serviceId;
+                        return String(sid) === String(wanted);
+                    });
+                    if (service) { openModal('service', service); return; }
+
+                    // 2) Se não tiver ID (ex.: catálogo padrão em fallback), tenta achar pelo nome no card.
+                    if (!/^\d+$/.test(wantedStr)) {
+                        const card = action.closest('.service-card');
+                        const nomeDoCard = card?.querySelector('h4')?.textContent?.trim();
+                        if (nomeDoCard) {
+                            const byName = state.services.find(item => {
+                                const n = item?.nome ?? item?.service_nome ?? item?.ServiceName;
+                                return String(n).trim() === nomeDoCard;
+                            });
+                            if (byName) { openModal('service', byName); return; }
+                        }
+                    }
+
+                    // 3) Fallback: tenta buscar no backend (caso o estado não esteja sincronizado)
+                    if (/^\d+$/.test(wantedStr)) {
+                        const fetched = await api(`/servicos/${wantedStr}`);
+                        openModal('service', fetched);
+                        return;
+                    }
+
+                    toast('Serviço não encontrado para editar.', 'error');
+                    return;
+                }
+                if (action.dataset.action === 'delete-service') {
+                    if (!confirm('Desativar este serviço do catálogo?')) return;
+                    // id vem de data-id; garantimos que seja numérico/consistente.
+                    const wanted = String(id ?? '').trim();
+                    if (!/^\d+$/.test(wanted)) {
+                        toast('ID do serviço inválido.', 'error');
+                        return;
+                    }
+                    await api(`/servicos/${wanted}`, { method: 'DELETE' });
+                    toast('Serviço desativado.');
+                    await loadServiceCatalog();
+                    return;
+                }
+
+                if (action.dataset.action === 'toggle-service') {
+                    const wanted = String(id ?? '').trim();
+                    if (!/^\d+$/.test(wanted)) {
+                        toast('ID do serviço inválido.', 'error');
+                        return;
+                    }
+
+                    const service = state.services.find(item => {
+                        const sid = item?.id ?? item?.service_id ?? item?.ID ?? item?.serviceId;
+                        return String(sid) === String(wanted);
+                    });
+
+                    if (!service) {
+                        toast('Serviço não encontrado.', 'error');
+                        return;
+                    }
+
+                    const isActive = service.ativo !== undefined ? Number(service.ativo) !== 0 : true;
+                    if (isActive) {
+                        await api(`/servicos/${wanted}`, { method: 'DELETE' });
+                        toast('Serviço desativado.');
+                    } else {
+                        // Ativa usando os dados atuais do serviço
+                        const nome = service?.nome ?? service?.service_nome ?? service?.ServiceName;
+                        const descricao = service?.descricao ?? service?.description ?? '';
+                        const dur = Number(service?.duracao_minutos ?? 60);
+                        const preco = Number(service?.preco ?? 0);
+
+                        await api(`/servicos/${wanted}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ nome, descricao, duracao_minutos: dur, preco, ativo: 1 })
+                        });
+                        toast('Serviço ativado.');
+                    }
+
+                    await loadServiceCatalog();
+                    return;
+                }
+
+                if (action.dataset.action === 'pet-tutor-mode') { setPetTutorMode(action.dataset.mode); return; }
+                if (action.dataset.action === 'select-pet') { const pet = state.pets.find(item => String(item.id) === String(id)); const form = $('#appointmentForm'); if (pet && form) { form.elements.pet_id.value = pet.id; form.elements.pet_search.value = `${pet.nome} — ${pet.tutor_nome || ''}`; $('#petPickerResults').classList.remove('open'); } return; }
+                if (action.dataset.action === 'new-pet') { if (!state.tutors.length) state.tutors = await api('/tutores'); openModal('pet'); return; }
+                if (action.dataset.action === 'new-appointment') { if (!state.pets.length) state.pets = await api('/pets'); if (!state.services.length) await loadServiceCatalog(); openModal('appointment'); return; }
+                if (action.dataset.action === 'book-service') { if (!state.pets.length) state.pets = await api('/pets'); if (!state.services.length) await loadServiceCatalog(); openModal('appointment'); setTimeout(() => { const select = $('#appointmentForm select[name="service_id"]'); if (select) { select.value = action.dataset.serviceId; select.dispatchEvent(new Event('change')); } }, 25); return; }
+                if (action.dataset.action === 'view-pet') { await openPetProfile(id); return; }
+                if (action.dataset.action === 'view-tutor-profile') { await openTutorProfile(id); return; }
+                if (action.dataset.action === 'rebook') { const item = state.appointments.find(row => String(row.id) === String(id)); if (!item) { toast('Agendamento não encontrado.', 'error'); return; } const requestedDate = prompt('Nova data (AAAA-MM-DD):', today()); const requestedTime = prompt('Novo horário (HH:MM):', item.hora); if (!requestedDate || !requestedTime) return; const data = { data: requestedDate, hora: requestedTime, observacoes: item.observacoes || '' }; const created = await api(`/agendamentos/${id}/reagendar`, { method: 'POST', body: JSON.stringify(data) }); toast(`Agendamento reagendado para ${formatDate(created.data)} às ${safe(created.hora)}.`); await refreshData(); return; }
+                if (action.dataset.action === 'register-payment') { const item = state.appointments.find(row => String(row.id) === String(id)) || await api(`/agendamentos/${id}`); openModal('payment', item); return; }
+                if (action.dataset.action === 'view-payments') { await viewPayments(id); return; }
+                if (action.dataset.action === 'edit-payment') {
+                    const paymentId = String(id ?? '').trim();
+                    const payment = (state.paymentModalPayments || []).find(p => String(p.id) === String(paymentId));
+                    if (!payment) { toast('Pagamento não encontrado.', 'error'); return; }
+                    openModal('payment-edit', { ...payment, saldo_devedor: state.paymentModalAppointment?.saldo_devedor });
+                    return;
+                }
+                if (action.dataset.action === 'refund-payment') {
+                    const paymentId = String(id ?? '').trim();
+                    const payment = (state.paymentModalPayments || []).find(p => String(p.id) === String(paymentId));
+                    if (!payment) { toast('Pagamento não encontrado.', 'error'); return; }
+                    openModal('payment-refund', { ...payment, saldo_devedor: state.paymentModalAppointment?.saldo_devedor });
+                    return;
+                }
+                if (action.dataset.action === 'print-receipt') { printReceipt(id); return; }
+                if (action.dataset.action === 'print-report') { window.print(); return; }
+                if (action.dataset.action === 'backup-sqlite') {
+                    const url = `${API_URL}/backup/sqlite`;
+                    window.open(url, '_blank', 'noopener');
+                    toast('Backup SQLite iniciado.', 'success');
+                    return;
+                }
+                if (action.dataset.action === 'apply-report-filter') { await loadReports(); return; }
+                if (action.dataset.action === 'close-modal') { closeModal(); return; }
+                if (action.dataset.action === 'refresh') { await refreshData(); return; }
+                if (action.dataset.action === 'recalculate-financial') { await recalculateFinancial(); return; }
+                if (action.dataset.action === 'edit-tutor') { await editTutor(id); return; }
+                if (action.dataset.action === 'edit-pet') { await editPet(id); return; }
+                if (action.dataset.action === 'edit-appointment') { await editAppointment(id); return; }
+                if (action.dataset.action === 'delete-tutor') { await remove('tutores', id); return; }
+                if (action.dataset.action === 'delete-pet') { await remove('pets', id); return; }
+                if (action.dataset.action === 'delete-appointment') { await remove('agendamentos', id); return; }
+                if (action.dataset.action === 'whatsapp') { openWhatsApp(id); return; }
+                if (action.dataset.action === 'bulk-whatsapp-prontos') { await bulkWhatsAppProntos(); return; }
+                if (action.dataset.action === 'bulk-whatsapp-prontos-nopay') { await bulkWhatsAppProntosNoPay(); return; }
+
+                if (action.dataset.action === 'send-whatsapp') {
+                    const appointmentId = String(id ?? '').trim();
+                    if (!/^\d+$/.test(appointmentId)) { toast('ID do atendimento inválido.', 'error'); return; }
+                    const item = (state.appointments || []).find(row => String(row.id) === String(appointmentId));
+                    if (!item) { toast('Atendimento não encontrado.', 'error'); return; }
+
+                    const phone = formatTutorPhone(item.tutor_telefone);
+                    if (!phone) { toast('Este atendimento não possui telefone válido do tutor.', 'error'); return; }
+
+                    const messageKind = action.dataset.whatsappKind || '';
+                    const saldo = Number(item.saldo_devedor || 0);
+
+                    let message = buildBulkWhatsAppMessage(item);
+                    if (messageKind === 'nopay' && saldo > 0.005) {
+                        message = `${message}\n\nPagamento pendente para este atendimento: ${formatMoney(saldo)}.\nPara confirmar o pagamento, responda esta mensagem.`;
+                    }
+
+                    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+                    toast('WhatsApp aberto.', 'success');
+                    return;
+                }
+
+                if (action.dataset.action === 'save-reminder') { const form = $('#reminderForm'); const tutor = state.tutors.find(t => String(t.id) === String(form.tutor_id.value)); if (!tutor || !form.mensagem.value.trim()) { toast('Selecione um tutor e informe a mensagem.', 'error'); return; } const rows = savedReminders(); rows.unshift({ tutor: tutor.nome, tipo: form.tipo.value, mensagem: form.mensagem.value.trim(), date: new Date().toLocaleString('pt-BR') }); try { localStorage.setItem('petcare-reminders', JSON.stringify(rows.slice(0, 20))); } catch (_) {} renderSavedReminders(); toast('Lembrete salvo neste navegador.'); return; }
+            } catch (error) { toast(error.message, 'error'); }
+        });
+        document.addEventListener('change', event => { if (event.target.dataset.action === 'change-status') changeStatus(event.target.dataset.id, event.target.value); if (event.target.name === 'service_id') { const form = event.target.form; const custom = event.target.value === 'custom'; const group = form?.querySelector('#customServiceGroup'); if (group) { group.hidden = !custom; if (form.servico_custom) { form.servico_custom.disabled = !custom; form.servico_custom.required = custom; } } if (!custom) { const option = event.target.options[event.target.selectedIndex]; if (option?.dataset.price && (!form.valor.value || Number(form.valor.value) === 0)) form.valor.value = option.dataset.price; if (option?.dataset.duration && (!form.duracao_minutos.value || Number(form.duracao_minutos.value) === 60)) form.duracao_minutos.value = option.dataset.duration; } } if (event.target.id === 'agendaDate' || event.target.id === 'agendaStatusFilter') { if (event.target.id === 'agendaDate') loadAgenda(); else renderAgenda(); } });
+        document.addEventListener('submit', async event => { if (!['tutorForm', 'petForm', 'appointmentForm', 'serviceForm', 'paymentForm', 'paymentEditForm', 'paymentRefundForm', 'reminderForm'].includes(event.target.id)) return; event.preventDefault(); try { if (event.target.id === 'tutorForm') await submitTutor(event.target); if (event.target.id === 'petForm') await submitPet(event.target); if (event.target.id === 'appointmentForm') await submitAppointment(event.target); if (event.target.id === 'serviceForm') await submitService(event.target); if (event.target.id === 'paymentForm') await submitPayment(event.target); if (event.target.id === 'paymentEditForm') await submitPaymentEdit(event.target); if (event.target.id === 'paymentRefundForm') await submitPaymentRefund(event.target); if (event.target.id === 'reminderForm') { const tutor = state.tutors.find(t => String(t.id) === String(event.target.tutor_id.value)); if (!tutor) throw new Error('Selecione um tutor.'); const message = event.target.mensagem.value.trim(); if (!message) throw new Error('Informe uma mensagem.'); window.open(`https://wa.me/55${digits(tutor.telefone)}?text=${encodeURIComponent(message)}`, '_blank', 'noopener'); toast('Mensagem pronta no WhatsApp.', 'info'); } } catch (error) { toast(apiErrorMessage(error), 'error'); } });
+        document.addEventListener('input', event => { if (event.target.name === 'telefone' || event.target.name === 'tutor_telefone') formatPhoneInput(event.target); if (event.target.name === 'cpf' || event.target.name === 'tutor_cpf') formatCpfInput(event.target); if (event.target.id === 'tutorFilter') renderTutors(); if (event.target.id === 'petFilter') renderPets(); if (event.target.name === 'pet_search') renderPetPicker(event.target.value); });
+
+        // Ajuste de UX: scroll no input numérico (preço) deve alterar de 0,50 em 0,50.
+        // Isso evita o comportamento padrão de alguns navegadores que incrementa “centavo por centavo”.
+        document.addEventListener('wheel', (event) => {
+            const el = event.target;
+            if (!el || el.tagName !== 'INPUT') return;
+            if (el.type !== 'number') return;
+            if (!['preco', 'valor'].includes(el.name)) return;
+
+            // Evita o incremento padrão do navegador.
+            event.preventDefault();
+
+            const current = Number(el.value);
+            const currentValue = Number.isFinite(current) ? current : 0;
+            const sign = Math.sign(event.deltaY) || 0;
+            if (!sign) return;
+
+            const step = 0.5;
+            const next = Math.max(0, currentValue + (sign > 0 ? step : -step));
+
+            // Mantém 2 casas decimais para consistência.
+            el.value = next.toFixed(2);
+        }, { passive: false });
+
+        $('#modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); });
+        $('#globalSearch').addEventListener('input', event => globalSearch(event.target.value));
+        $('#globalSearch').addEventListener('focus', event => { if (event.target.value.length >= 2) globalSearch(event.target.value); });
+        document.addEventListener('click', event => { if (!event.target.closest('.search-wrap')) $('#searchResults').classList.remove('open'); if (!event.target.closest('.pet-picker')) $('#petPickerResults')?.classList.remove('open'); const result = event.target.closest('[data-search-view]'); if (result) { $('#searchResults').classList.remove('open'); const view = result.dataset.searchView; const kind = result.dataset.searchKind; const id = result.dataset.id; navigate(view);
+                // Garante que o modal abra somente depois de trocar a aba (evita estado/containers atrasados)
+                setTimeout(() => {
+                    if (kind === 'tutor') openTutorProfile(id);
+                    if (kind === 'pet') openPetProfile(id);
+                }, 30);
+            } });
+
+        function initialize() { const dateLabel = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()); $('#topbarDate').textContent = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1); $('#agendaDate').value = today(); renderServices(); loadDashboard(); }
+        initialize();
+    </script>
+</body>
+</html>
