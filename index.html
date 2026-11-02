@@ -503,7 +503,7 @@
             <div class="content">
                 <section class="view active" id="view-dashboard">
                     <div class="page-heading">
-                        <div><h2>Bom dia! 👋</h2><p>Acompanhe o movimento do seu pet shop.</p></div>
+                        <div><h2> 👋</h2><p>Acompanhe o movimento do seu pet shop.</p></div>
                         <div class="actions"><button class="btn btn-primary" data-action="new-appointment">＋ Novo agendamento</button></div>
                     </div>
                     <div id="unpaidNotice" class="notice notice-warn" hidden></div>
@@ -559,7 +559,7 @@
                 </section>
 
                 <section class="view" id="view-relatorios">
-                    <div class="page-heading"><div><h2>Relatórios</h2><p>Veja o desempenho financeiro e operacional por período.</p></div><div class="actions"><button class="btn btn-light" data-action="refresh">↻ Atualizar</button><button class="btn btn-light" data-action="backup-sqlite">Backup SQLite</button><button class="btn btn-primary" data-action="print-report">Imprimir relatório</button></div></div>
+                    <div class="page-heading"><div><h2>Relatórios</h2><p>Veja o desempenho financeiro e operacional por período.</p></div><div class="actions"><button class="btn btn-light" data-action="refresh">↻ Atualizar</button><button class="btn btn-light" data-action="import-excel">Importar Excel</button><button class="btn btn-light" data-action="export-excel">Exportar Excel</button><button class="btn btn-light" data-action="backup-sqlite">Backup SQLite</button><button class="btn btn-primary" data-action="print-report">Imprimir relatório</button></div></div>
                     <article class="panel report-filter-panel"><div class="panel-body"><div class="toolbar" style="margin:0"><div class="filter-group"><label class="subtle">De <input class="field-inline" type="date" id="reportStart"></label><label class="subtle">Até <input class="field-inline" type="date" id="reportEnd"></label><button class="btn btn-primary" data-action="apply-report-filter">Aplicar período</button></div><span class="subtle" id="reportPeriodLabel"></span></div></div></article>
                     <div class="report-grid" id="reportCards"></div>
                     <div class="dashboard-grid report-sections"><article class="panel"><div class="panel-header"><div><h3>Serviços por tipo</h3><p>Volume e faturamento no período.</p></div></div><div class="table-wrap"><table><thead><tr><th>Serviço</th><th>Atendimentos</th><th>Faturamento</th></tr></thead><tbody id="reportServices"></tbody></table></div></article><article class="panel"><div class="panel-header"><div><h3>Atendimentos por status</h3><p>Acompanhe o andamento dos serviços.</p></div></div><div class="table-wrap"><table><thead><tr><th>Status</th><th>Quantidade</th><th>Valor</th></tr></thead><tbody id="reportStatuses"></tbody></table></div></article></div>
@@ -1095,6 +1095,34 @@
             $('#modalBackdrop').classList.add('open'); setTimeout(() => $('#modalBox input, #modalBox select, #modalBox textarea')?.focus(), 20);
         }
         function closeModal() { $('#modalBackdrop').classList.remove('open'); state.modalType = null; state.editingId = null; }
+
+        function openExcelImportModal() {
+            $('#modalBox').innerHTML = `
+                <div class="modal-header">
+                    <h3>Importar Excel</h3>
+                    <button class="icon-btn" data-action="close-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="notice info">
+                        Envie um Excel com 4 abas (nomes podem variar): <strong>tutores</strong>, <strong>pets</strong>, <strong>telefone</strong> e <strong>porte</strong>.
+                    </div>
+                    <div class="form-group full" style="margin-top:14px">
+                        <label>Arquivo Excel <span>*</span></label>
+                        <input id="excelFileInput" class="form-control" type="file" accept=".xlsx,.xls" />
+                    </div>
+                    <div class="notice notice-warn" style="margin-top:12px">
+                        Duplicados serão <strong>inseridos</strong> (não atualiza nem pula registros).
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-action="close-modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" data-action="confirm-import-excel">Importar</button>
+                </div>
+            `;
+
+            $('#modalBackdrop').classList.add('open');
+            setTimeout(() => $('#excelFileInput')?.focus(), 20);
+        }
         async function openPetProfile(id) {
             try {
                 const pet = state.pets.find(item => String(item.id) === String(id)) || await api(`/pets/${id}`);
@@ -1389,6 +1417,60 @@
                 }
                 if (action.dataset.action === 'print-receipt') { printReceipt(id); return; }
                 if (action.dataset.action === 'print-report') { window.print(); return; }
+                if (action.dataset.action === 'import-excel') {
+                    openExcelImportModal();
+                    return;
+                }
+                if (action.dataset.action === 'export-excel') {
+                    const url = `${API_URL}/export/excel`;
+                    window.open(url, '_blank', 'noopener');
+                    toast('Exportação Excel iniciada.', 'success');
+                    return;
+                }
+                if (action.dataset.action === 'confirm-import-excel') {
+                    const input = $('#excelFileInput');
+                    if (!input?.files?.length) { toast('Selecione um arquivo Excel (.xlsx/.xls).', 'error'); return; }
+
+                    const file = input.files[0];
+                    const btn = action;
+                    const prevText = btn.textContent;
+                    btn.disabled = true;
+                    btn.textContent = 'Importando...';
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        const response = await fetch(`${API_URL}/import/excel`, { method: 'POST', body: formData });
+                        let data = null;
+                        try { data = await response.json(); } catch (_) { data = {}; }
+
+                        if (!response.ok) {
+                            throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}`);
+                        }
+
+                        const insertedTutors = data?.inserted?.tutores ?? 0;
+                        const insertedPets = data?.inserted?.pets ?? 0;
+                        closeModal();
+
+                        const hasErrors = Array.isArray(data?.errors) && data.errors.length > 0;
+                        toast(`Import concluída: ${insertedTutors} tutores, ${insertedPets} pets.`, hasErrors ? 'error' : 'success');
+
+                        if (Array.isArray(data?.errors) && data.errors.length) toast(`Aviso: ${data.errors.length} erro(s) na importação.`, 'error');
+                        if (Array.isArray(data?.warnings) && data.warnings.length) toast(`Aviso: ${data.warnings.length} alerta(s) na importação.`, 'info');
+
+                        // Atualiza listagens base.
+                        await Promise.all([loadTutors(), loadPets()]);
+                        return;
+                    } catch (error) {
+                        toast(apiErrorMessage(error), 'error');
+                        return;
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = prevText;
+                    }
+                }
+
                 if (action.dataset.action === 'backup-sqlite') {
                     const url = `${API_URL}/backup/sqlite`;
                     window.open(url, '_blank', 'noopener');
