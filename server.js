@@ -3,6 +3,8 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
+const xlsx = require('xlsx');
 
 const app = express();
 
@@ -13,6 +15,10 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const JSON_LIMIT = process.env.JSON_LIMIT || '100kb';
 const ALLOWED_STATUSES = ['Aguardando', 'Em Banho', 'Pronto', 'Entregue', 'Cancelado', 'Reagendado'];
 const MAX_TEXT_LENGTH = 5000;
+
+// Garante que a pasta do DB exista (útil quando DB_PATH aponta para um diretório montado).
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
 const db = new sqlite3.Database(DB_PATH);
 let httpServer = null;
@@ -869,6 +875,312 @@ app.get('/api/backup/sqlite', (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error?.message || 'Falha ao exportar backup.' });
     }
+});
+
+// ========================
+// Importação/Exportação Excel
+// ========================
+
+const uploadExcel = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+function normalizeKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, ' ');
+}
+
+function toText(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+}
+
+function coercePhone(value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits.length === 10 || digits.length === 11 ? digits : '';
+}
+
+function coerceCpf(value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits.length === 11 ? digits : null;
+}
+
+function pickColumnIndex(headerRow, keywords, fallback = -1) {
+    if (!Array.isArray(headerRow) || !headerRow.length) return fallback;
+    const normalizedKeywords = keywords.map(normalizeKey);
+    for (let i = 0; i < headerRow.length; i++) {
+        const cell = normalizeKey(headerRow[i]);
+        if (!cell) continue;
+        if (normalizedKeywords.some((k) => cell.includes(k))) return i;
+    }
+    return fallback;
+}
+
+function headerLooksLike(rows, keywords) {
+    const headerRow = Array.isArray(rows) ? rows[0] : null;
+    if (!headerRow || !Array.isArray(headerRow)) return false;
+    const normalizedKeywords = keywords.map(normalizeKey);
+    return headerRow.some((cell) => {
+        const t = normalizeKey(cell);
+        if (!t) return false;
+        return normalizedKeywords.some((k) => t.includes(k));
+    });
+}
+
+function findSheetName(sheetNames, keywords) {
+    const normalizedKeywords = keywords.map(normalizeKey);
+    const byName = sheetNames.find((name) => {
+        const n = normalizeKey(name);
+        return normalizedKeywords.some((k) => n.includes(k));
+    });
+    return byName || null;
+}
+
+function sheetToMatrix(workbook, sheetName) {
+    const ws = workbook.Sheets[sheetName];
+    if (!ws) return [];
+    return xlsx.utils.sheet_to_json(ws, { header: 1, defval: '' });
+}
+
+function parsePhoneMap(matrix) {
+    const map = new Map();
+    if (!Array.isArray(matrix) || !matrix.length) return map;
+
+    const headerRow = matrix[0] || [];
+
+    const tutorCol = pickColumnIndex(headerRow, ['tutor', 'responsavel', 'responsável', 'nome tutor'], 0);
+    const phoneCol = pickColumnIndex(headerRow, ['telefone', 'tel', 'phone'], tutorCol === 0 ? 1 : 0);
+
+    const startRow = headerLooksLike(matrix, ['telefone', 'tel', 'phone', 'tutor']) ? 1 : 0;
+
+    for (let r = startRow; r < matrix.length; r++) {
+        const row = matrix[r] || [];
+        const tutorName = toText(row[tutorCol] ?? row[0]);
+        if (!tutorName) continue;
+        const key = normalizeKey(tutorName);
+        const phone = coercePhone(row[phoneCol] ?? row[1]);
+        map.set(key, phone);
+    }
+
+    return map;
+}
+
+function parsePorteData(matrix) {
+    const mapByPetName = new Map();
+    const porteByIndex = [];
+
+    if (!Array.isArray(matrix) || !matrix.length) return { mapByPetName, porteByIndex };
+
+    const headerRow = matrix[0] || [];
+
+    const hasHeader = headerLooksLike(matrix, ['porte', 'tamanho', 'size', 'pet', 'animal', 'nome']);
+    const startRow = hasHeader ? 1 : 0;
+
+    const porteCol = pickColumnIndex(headerRow, ['porte', 'tamanho', 'size'], 1);
+    // Se existir, tentamos buscar uma coluna com nome do pet. Se não existir, fica vazio.
+    const petNameCol = pickColumnIndex(headerRow, ['pet', 'pets', 'animal', 'nome pet', 'nome do pet'], porteCol === 0 ? 1 : 0);
+
+    let index = 0;
+    for (let r = startRow; r < matrix.length; r++) {
+        const row = matrix[r] || [];
+        const petName = toText(petNameCol >= 0 ? row[petNameCol] : '');
+        const porteValue = toText(row[porteCol] ?? row[1] ?? row[row.length - 1]);
+
+        if (!petName && !porteValue) continue;
+
+        porteByIndex[index] = porteValue || null;
+        if (petName) mapByPetName.set(normalizeKey(petName), porteValue || null);
+        index++;
+    }
+
+    return { mapByPetName, porteByIndex };
+}
+
+app.post('/api/import/excel', uploadExcel.single('file'), handleAsync(async (req, res) => {
+    const file = req.file;
+    if (!file?.buffer) throw validationError('Arquivo Excel é obrigatório (xlsx/xls).', 'file');
+
+    const workbook = xlsx.read(file.buffer, { type: 'buffer' });
+    const sheetNames = Array.isArray(workbook.SheetNames) ? workbook.SheetNames : [];
+
+    if (sheetNames.length < 2) throw validationError('Planilha inválida (sem abas suficientes).', 'file');
+
+    const tutorNameKeywords = ['tutor', 'responsavel', 'responsável', 'nome tutor', 'responsavel'];
+    const petsNameKeywords = ['pet', 'pets', 'animal', 'nome pet', 'nome do pet'];
+    const phoneNameKeywords = ['telefone', 'tel', 'phone'];
+    const porteNameKeywords = ['porte', 'tamanho', 'size'];
+
+    // Tenta identificar por nome; se não der, cai no índice (ordem do arquivo do cliente).
+    const tutorSheetName = findSheetName(sheetNames, tutorNameKeywords) || sheetNames[0];
+    const petsSheetName = findSheetName(sheetNames, petsNameKeywords) || sheetNames[1] || sheetNames[0];
+    const phoneSheetName = findSheetName(sheetNames, phoneNameKeywords) || sheetNames[2] || null;
+    const porteSheetName = findSheetName(sheetNames, porteNameKeywords) || sheetNames[3] || null;
+
+    const tutorMatrix = sheetToMatrix(workbook, tutorSheetName);
+    const petsMatrix = sheetToMatrix(workbook, petsSheetName);
+    const phoneMatrix = phoneSheetName ? sheetToMatrix(workbook, phoneSheetName) : [];
+    const porteMatrix = porteSheetName ? sheetToMatrix(workbook, porteSheetName) : [];
+
+    const errors = [];
+    const warnings = [];
+
+    const phoneMap = parsePhoneMap(phoneMatrix);
+    const { mapByPetName: porteByPetName, porteByIndex } = parsePorteData(porteMatrix);
+
+    const result = await transaction(async () => {
+        const tutorMap = new Map(); // normalizeNome -> tutor_id
+
+        let insertedTutors = 0;
+        let insertedPets = 0;
+
+        // =======================
+        // Parse tutores
+        // =======================
+        const tutorHeaderRow = tutorMatrix[0] || [];
+        const tutorNameCol = pickColumnIndex(tutorHeaderRow, ['tutor', 'responsavel', 'responsável', 'nome', 'nome tutor'], 0);
+        const tutorPhoneCol = pickColumnIndex(tutorHeaderRow, ['telefone', 'tel', 'phone'], tutorNameCol === 0 ? 1 : 0);
+        const tutorCpfCol = pickColumnIndex(tutorHeaderRow, ['cpf'], tutorPhoneCol === 1 ? 2 : 1);
+
+        const tutorStartRow = headerLooksLike(tutorMatrix, ['tutor', 'responsavel', 'responsável', 'telefone', 'cpf', 'nome']) ? 1 : 0;
+
+        for (let r = tutorStartRow; r < tutorMatrix.length; r++) {
+            const row = tutorMatrix[r] || [];
+            const nome = toText(row[tutorNameCol] ?? row[0]);
+            if (!nome) continue;
+
+            const key = normalizeKey(nome);
+            if (tutorMap.has(key)) continue;
+
+            const phoneFromSheet = coercePhone(row[tutorPhoneCol] ?? '');
+            const phone = phoneFromSheet || phoneMap.get(key) || '';
+            const cpf = coerceCpf(row[tutorCpfCol] ?? '');
+
+            const dbRes = await run('INSERT INTO tutores (nome, telefone, cpf) VALUES (?, ?, ?)', [nome, phone, cpf]);
+            tutorMap.set(key, dbRes.lastID);
+            insertedTutors++;
+        }
+
+        // =======================
+        // Parse pets
+        // =======================
+        const petsHeaderRow = petsMatrix[0] || [];
+
+        const petsHasHeader = headerLooksLike(petsMatrix, ['pet', 'pets', 'animal', 'tutor', 'nome']);
+        const petsStartRow = petsHasHeader ? 1 : 0;
+
+        const petNameCol = pickColumnIndex(petsHeaderRow, ['pet', 'pets', 'animal', 'nome pet', 'nome do pet'], 0);
+        const petsTutorNameCol = pickColumnIndex(petsHeaderRow, ['tutor', 'responsavel', 'responsável'], petNameCol === 0 ? 1 : 0);
+
+        const especieCol = pickColumnIndex(petsHeaderRow, ['especie', 'espécie'], -1);
+        const racaCol = pickColumnIndex(petsHeaderRow, ['raca', 'raça'], -1);
+        const porteColInPets = pickColumnIndex(petsHeaderRow, ['porte', 'tamanho', 'size'], -1);
+        const observacoesCol = pickColumnIndex(petsHeaderRow, ['observacoes', 'observações', 'cuidado', 'cuidados'], -1);
+
+        let petIndex = 0;
+
+        for (let r = petsStartRow; r < petsMatrix.length; r++) {
+            const row = petsMatrix[r] || [];
+            const petNome = toText(row[petNameCol] ?? row[0]);
+            if (!petNome) continue;
+
+            const tutorNome = toText(row[petsTutorNameCol] ?? row[1]);
+            if (!tutorNome) {
+                errors.push({ row: r + 1, sheet: petsSheetName, message: `Pet '${petNome}' sem tutor no arquivo.` });
+                // ainda incrementa índice para manter alinhamento porte por ordem
+                petIndex++;
+                continue;
+            }
+
+            const tutorId = tutorMap.get(normalizeKey(tutorNome));
+            if (!tutorId) {
+                errors.push({ row: r + 1, sheet: petsSheetName, message: `Tutor '${tutorNome}' não encontrado na aba de tutores.` });
+                petIndex++;
+                continue;
+            }
+
+            const petKey = normalizeKey(petNome);
+            const porteByName = porteByPetName.get(petKey);
+            const porteByOrder = porteByIndex[petIndex];
+            const porteFromPetsSheet = porteColInPets >= 0 ? toText(row[porteColInPets]) : '';
+
+            const porteValue = (porteByName ?? porteFromPetsSheet ?? porteByOrder ?? '').toString().trim();
+            const porte = porteValue ? porteValue : null;
+
+            const especie = (especieCol >= 0 ? toText(row[especieCol]) : '') || 'Cão';
+            const raca = racaCol >= 0 ? toText(row[racaCol]) : '';
+            const observacoes = observacoesCol >= 0 ? toText(row[observacoesCol]) : '';
+
+            await run(
+                'INSERT INTO pets (tutor_id, nome, especie, raca, porte, observacoes) VALUES (?, ?, ?, ?, ?, ?)',
+                [tutorId, petNome, especie || 'Cão', raca || null, porte, observacoes || null]
+            );
+
+            insertedPets++;
+            petIndex++;
+        }
+
+        if (!insertedTutors && tutorMatrix.length) warnings.push({ sheet: tutorSheetName, message: 'Nenhum tutor foi inserido. Verifique a coluna/headers de nome do tutor.' });
+        if (!insertedPets && petsMatrix.length) warnings.push({ sheet: petsSheetName, message: 'Nenhum pet foi inserido. Verifique a coluna/headers de nome do pet.' });
+
+        return {
+            ok: true,
+            inserted: { tutores: insertedTutors, pets: insertedPets },
+            warnings,
+            errors,
+            source: { tutoresSheet: tutorSheetName, petsSheet: petsSheetName, phoneSheet: phoneSheetName, porteSheet: porteSheetName }
+        };
+    });
+
+    res.json({
+        ...result,
+        // Limites para evitar respostas gigantescas.
+        warnings: result.warnings?.slice(0, 50) || [],
+        errors: result.errors?.slice(0, 50) || []
+    });
+});
+
+app.get('/api/export/excel', handleAsync(async (req, res) => {
+    const tutors = await all('SELECT id, nome, telefone, cpf FROM tutores ORDER BY nome');
+    const pets = await all(`
+        SELECT p.*, t.nome AS tutor_nome, t.telefone AS tutor_telefone, t.cpf AS tutor_cpf
+        FROM pets p
+        JOIN tutores t ON p.tutor_id = t.id
+        ORDER BY t.nome, p.nome
+    `);
+
+    const wb = xlsx.utils.book_new();
+
+    const tutorRows = [
+        ['Nome do tutor', 'Telefone', 'CPF'],
+        ...tutors.map((t) => [t.nome || '', t.telefone || '', t.cpf || ''])
+    ];
+    const wsTutors = xlsx.utils.aoa_to_sheet(tutorRows);
+    xlsx.utils.book_append_sheet(wb, wsTutors, 'tutores');
+
+    const petRows = [
+        ['Tutor', 'Pet', 'Espécie', 'Raça', 'Porte', 'Observações'],
+        ...pets.map((p) => [
+            p.tutor_nome || '',
+            p.nome || '',
+            p.especie || '',
+            p.raca || '',
+            p.porte || '',
+            p.observacoes || ''
+        ])
+    ];
+    const wsPets = xlsx.utils.aoa_to_sheet(petRows);
+    xlsx.utils.book_append_sheet(wb, wsPets, 'pets');
+
+    const buffer = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="petcare_export.xlsx"');
+    res.status(200).send(buffer);
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
