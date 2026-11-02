@@ -1142,7 +1142,7 @@ app.post('/api/import/excel', uploadExcel.single('file'), handleAsync(async (req
         warnings: result.warnings?.slice(0, 50) || [],
         errors: result.errors?.slice(0, 50) || []
     });
-});
+}));
 
 app.get('/api/export/excel', handleAsync(async (req, res) => {
     const tutors = await all('SELECT id, nome, telefone, cpf FROM tutores ORDER BY nome');
